@@ -183,7 +183,7 @@ the module is absent.
 Content icons (`key-features`, `alert`, `comparison`, `informations`):
 
 ```go-html-template
-{{ if templates.Exists "partials/icon.html" }}{{ partial "icon" . }}{{ else }}<i class="icon icon-{{ . }}"></i>{{ end }}
+{{ if templates.Exists "partials/icon.html" }}{{ partial "icon" . }}{{ end }}
 ```
 
 Social menu (`nav/social.html`) — the fallback shows the **label** and keeps the
