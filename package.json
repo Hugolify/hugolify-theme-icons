@@ -1,0 +1,24 @@
+{
+  "name": "hugolify-theme-icons",
+  "version": "0.0.0",
+  "homepage": "https://www.hugolify.io",
+  "repository": "https://github.com/hugolify/hugolify-theme-icons",
+  "bugs": {
+    "url": "https://github.com/hugolify/hugolify-theme-icons/issues"
+  },
+  "author": {
+    "email": "sebousan@gmail.com",
+    "name": "Sébastien Moulène",
+    "url": "https://www.sebastienmoulene.com/"
+  },
+  "keywords": [
+    "hugolify",
+    "hugo",
+    "icon",
+    "lucide"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@hugolify/prettier-config": "^0.3.1"
+  }
+}
