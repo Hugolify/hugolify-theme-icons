@@ -4,13 +4,12 @@ The icon layer for modern Hugolify themes. It renders **Lucide** for UI/content
 icons and **Simple Icons** for brands, as SVG masks (`currentColor`), with no
 webfont and no project-side build step.
 
-It is **opinionated**: Lucide is the only UI set. Projects that want Bootstrap
-Icons stay on `hugolify-theme-bootstrap` (which keeps its native webfont system)
-and do **not** import this module.
+It is **opinionated**: Lucide is the only UI set. It is also **opt-in** — a project
+imports the module to get icons, and renders none if it doesn't (see §7).
 
-> Status: **design**. The SASS files currently under `assets/sass/` are the
-> legacy webfont system copied from `hugolify-theme-bootstrap`, kept only as a
-> reference. They are removed when the mask-based engine lands.
+> Status: **implemented, not yet validated by a build** (see §9). The mask-based
+> engine — `hugo.yaml`, `layouts/partials/icon.html`,
+> `layouts/partials/head/icons.html` — is in place.
 
 ---
 
@@ -31,9 +30,9 @@ Content uses Lucide names as-is. `{{ partial "icon" "map-pin" }}` →
 `icons/ui/map-pin.svg`. There is **no mapping table** (`data/icons.yaml` does not
 exist): the name *is* the filename.
 
-Legacy content authored with Bootstrap Icons names (`pin-map-fill`) is **not**
-bridged at runtime. Hugolify v2 rewrites that content to Lucide names
-(`icon-map-pin`) as part of the migration — see the reference table in §8.
+Content authored with non-Lucide names (e.g. an older `pin-map-fill`) is **not**
+bridged at runtime — there is no alias layer. Such content is rewritten to Lucide
+names (`icon-map-pin`) ahead of time, by the Hugolify v2 content migration (§8).
 
 ## 3. Why mask, not webfont
 
@@ -44,7 +43,9 @@ Every icon is rendered the same way:
 ```css
 @layer components {
   .icon {
-    background-color: currentColor;
+    /* default glyph = empty SVG → an unmapped icon is invisible, not a solid square */
+    --icon-glyph: url('data:image/svg+xml,%3Csvg/%3E');
+    background-color: var(--icon-color, currentColor);
     display: inline-block;
     width: var(--icon-size, 1em);
     height: var(--icon-size, 1em);
@@ -56,7 +57,8 @@ Every icon is rendered the same way:
 
 Icons differ only by their `--icon-glyph` (an inline SVG data-URI). The SVG is an
 **alpha mask**, so its own colors are irrelevant — the final color comes from
-`background-color: currentColor`.
+`background-color: var(--icon-color, currentColor)`. This base rule is not a
+separate file: it is folded into the generated stylesheet (see §7).
 
 Brand icons therefore render **monochrome**, which is the norm for social rows. If
 colored logos are ever required, those specific icons would need inline SVG
@@ -69,10 +71,10 @@ content: icon-map-pin                         ← Lucide name, directly
         │
 partial "icon" "map-pin"                      ← emits markup + registers the name
         │
-templates.Defer (in baseof)                   ← after full render: resolve → SVG
+templates.Defer (head/icons.html)             ← after full render: resolve → SVG
         │   resources.Get "icons/ui/map-pin.svg" → data-URI
         ▼
-css/icons.css (fingerprinted, subset)         ← one cached file, only used icons
+css/icons.css (subset, fingerprinted in prod) ← one cached file, only used icons
         +
 <i class="icon icon-map-pin">                 ← lightweight DOM
 ```
@@ -91,8 +93,10 @@ with no engine change. There is no runtime selection and no `params.icons.ui`.
 ```yaml
 module:
   mounts:
-    - { source: assets, target: assets }
     - { source: layouts, target: layouts }
+    # local assets win over the imported icon modules below → curated brands
+    # (e.g. linkedin, dropped by both upstreams) fill the gaps. See §6 and §9.
+    - { source: assets, target: assets }
   imports:
     - path: github.com/lucide-icons/lucide        # UI/content icons
       ignoreConfig: true
@@ -118,7 +122,7 @@ author writes nothing special.
 
 ```go-html-template
 {{/* social menu partial */}}
-{{ partial "icon" (printf "brand:%s" .title) }}
+{{ partial "icon" (printf "brand:%s" (lower .title)) }}
 ```
 
 This also disambiguates names that exist in both sets:
@@ -141,53 +145,61 @@ Emits markup only and registers the name for the deferred pass.
 {{- if strings.HasPrefix . "brand:" -}}
   {{- $dir = "brands" }}{{ $name = strings.TrimPrefix "brand:" . -}}
 {{- end -}}
-{{- site.Store.Add "usedIcons" (slice (dict "dir" $dir "name" $name)) -}}
+{{- site.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
 <i class="icon icon-{{ $name }}" aria-hidden="true"></i>
 ```
 
-### Engine — `templates.Defer` in `baseof.html`
+Each used icon is registered as a `"dir:name"` string (e.g. `ui:map-pin`,
+`brands:github`); the deferred pass splits it back on `:`.
 
-Runs after all pages render, so `site.Store` holds every icon used site-wide.
-Produces one fingerprinted CSS file containing only those icons. No lookup table.
+### Engine — `layouts/partials/head/icons.html`
+
+The base theme's `<head>` guards the include the same opt-in way as the call
+sites — `{{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}`
+(in `hugolify-theme`'s `partials/head/head.html`) — so this partial runs **only**
+when this module provides it. The `templates.Defer` block runs after all pages
+render, so `site.Store` holds
+every icon used site-wide. It emits one CSS file containing the base `.icon` rule
+(§3, folded in) plus one `--icon-glyph` per used icon — no separate base asset, no
+lookup table. The file is minified + fingerprinted **in production only**.
 
 ```go-html-template
-{{ with (templates.Defer (dict "key" "iconset")) }}
-  {{- $css := slice -}}
+{{ with (templates.Defer (dict "key" "hugolify-icons")) }}
+  {{- $glyphs := slice -}}
   {{- range site.Store.Get "usedIcons" | uniq -}}
-    {{- $name := .name }}{{ $dir := .dir -}}
+    {{- $parts := split . ":" -}}
+    {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
-      {{- $clean := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- $css = $css | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($clean | base64Encode)) -}}
+      {{- /* currentColor has no context in a mask → force opaque; collapse whitespace to ONE space (never empty: pretty-printed SVGs would glue their attributes) */ -}}
+      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
+      {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
     {{- else -}}
-      {{- warnf "icon %q not found in %q" $name $dir -}}
+      {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
     {{- end -}}
   {{- end -}}
-  {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s}" (delimit $css "")) | minify | fingerprint -}}
-  <link rel="stylesheet" href="{{ $res.RelPermalink }}" integrity="{{ $res.Data.Integrity }}">
+  {{- with $glyphs -}}
+    {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
+    {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
+    {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
+    <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>
+  {{- end -}}
 {{ end }}
 ```
 
-### Base CSS — `assets/css/base/icon.css`
+### Consuming-theme call sites
 
-See §3.
-
-### Base-theme call sites
-
-`hugolify-theme-icons` is the **sole** provider of `partials/icon.html`, and it is
-**opt-in**. There is intentionally **no default `icon` partial in the base theme**:
-a default would always satisfy `templates.Exists` (blocking the fallback below) and
-would double-render Bootstrap's social icons — its `.nav-social .github a::before`
-glyph *plus* the `<i>`. So call sites guard with `templates.Exists` and adapt when
-the module is absent.
+This module is the **sole** provider of `partials/icon.html`, and it is **opt-in**.
+A consuming theme must **not** ship a default `icon` partial: a default would always
+satisfy `templates.Exists`, defeating both the guard and the fallback below. So call
+sites guard with `templates.Exists` and adapt when the module is absent.
 
 Content icons (`key-features`, `alert`, `comparison`, `informations`):
 
 ```go-html-template
-{{ if templates.Exists "partials/icon.html" }}{{ partial "icon" . }}{{ end }}
+{{ with .icon }}{{ if templates.Exists "partials/icon.html" }}{{ partial "icon" . }}{{ end }}{{ end }}
 ```
 
-Social menu (`nav/social.html`) — the fallback shows the **label** and keeps the
-markup Bootstrap's `_nav-social.sass` expects:
+Social menu (`nav/social.html`) — falls back to the plain link (its **label**):
 
 ```go-html-template
 {{ if templates.Exists "partials/icon.html" }}
@@ -201,30 +213,30 @@ markup Bootstrap's `_nav-social.sass` expects:
 
 Resulting behaviour:
 
-- **theme-icons present** → SVG mask; the icon is registered for the deferred CSS.
-- **Bootstrap** → the `else` markup; its webfont renders `.icon-NAME` (content) or the
-  `.nav-social … ::before` glyph (social). **That theme is untouched.**
-- **Neither** → content shows an empty `<i>`; the social menu shows the text label.
+- **module present** → SVG mask; the icon is registered for the deferred CSS.
+- **module absent** → content renders nothing; the social menu shows the text label
+  (via the `nav/link` fallback).
 
-CSS adapts to the same condition: layout and icon sizing (`.icon { --icon-size }`)
-live in the consuming theme (e.g.
+Layout and icon sizing (`.icon { --icon-size }`) live in the consuming theme (e.g.
 `hugolify-theme-design-system/assets/css/components/nav-social.css`); when no icon is
-rendered the link simply shows its text label. Never the glyphs.
+rendered the link simply shows its text label.
 
-## 8. Migration & legacy
+## 8. Migration
 
-- The webfont SASS under `assets/sass/` (bootstrap-icons, icomoon, material-icons)
-  is reference-only and is removed once the engine lands.
-- Bootstrap Icons stays in `hugolify-theme-bootstrap`; this module is not used
-  there.
-- **Hugolify v2 content migration**: rewrite `icon-*` Bootstrap names to Lucide
-  names.
+- **Content naming.** A project coming from another icon set carries non-Lucide
+  `icon-*` names in its content. There is no runtime alias; the Hugolify v2 content
+  migration rewrites those names to their Lucide equivalents ahead of time.
 
 ### Brands → Simple Icons
 
-`github, linkedin, instagram, youtube, facebook` resolve directly; `twitter` → `x`.
-`vimeo`, `google`, `bluesky`, `bootstrap` have no Lucide equivalent — which is
+`github, instagram, youtube, facebook` resolve directly; `twitter` → `x`.
+`vimeo`, `google`, `bluesky`, `mastodon` have no Lucide equivalent — which is
 exactly why brands go through Simple Icons.
+
+**`linkedin` is the exception:** Simple Icons removed it (and a few other brands)
+on legal request in 2022, and Lucide dropped all brand icons too — so it resolves
+from neither upstream. Filling it requires a local SVG committed to this module
+(see §9), which re-introduces the trademark exposure Simple Icons chose to avoid.
 
 ## 9. Status & open items
 
@@ -249,10 +261,16 @@ generated stylesheet, so no separate CSS asset is needed.
     *below* v0.289.0, so a later `@latest` would silently regress;
   - or source from npm `lucide-static` (properly versioned, current) or commit
     curated SVGs in this module.
-  - `simple-icons` (`v2.17.1+incompatible`) likely has the same stale-tag gap.
-- **Legacy SASS** under `assets/sass/` is now orphaned (its `twbs/icons` import was
-  removed from `hugo.yaml`) and is no longer mounted. Safe to delete — identical
-  files remain in `hugolify-theme-bootstrap`.
+  - **`simple-icons` has the same stale-tag gap, now confirmed:** highest git tag
+    is `v2.17.1` (long abandoned), while `master` ships 3442 brands. Pinned to its
+    default branch with `hugo mod get github.com/simple-icons/simple-icons@master`
+    (pseudo-version `v0.0.0-…`, again numerically below the old tag). Re-bump with
+    the same command; never `@latest`.
+- **`linkedin` has no upstream source** — removed from Simple Icons on legal request
+  (2022) and absent from Lucide (brand icons dropped). **Resolved here** with a local
+  `assets/icons/brands/linkedin.svg`; the local `assets` mount (§5) takes precedence
+  over the imports, so it fills the gap. This re-introduces the trademark exposure
+  Simple Icons avoided — a deliberate, accepted call.
 - **Class collision:** a page using both a UI `github` and a `brand:github` emits
   the same `.icon-github` twice with different glyphs. Namespace brand classes
   (e.g. `.icon-brand-github`) if this case is real.

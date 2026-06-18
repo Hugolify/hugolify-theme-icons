@@ -3,6 +3,11 @@ module:
   mounts:
     - source: layouts
       target: layouts
+    # Local assets take precedence over the imported icon modules below, so curated
+    # brands (e.g. linkedin, dropped by both Simple Icons and Lucide) fill the gaps.
+    # See DESIGN.md §9.
+    - source: assets
+      target: assets
 
   imports:
 

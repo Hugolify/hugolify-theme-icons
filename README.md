@@ -10,19 +10,15 @@ Private Use Area glyphs. Content references Lucide names directly, and the build
 ships only the icons actually used (the subset is produced natively by Hugo, with
 no Node step).
 
-It is opinionated: Lucide is the only UI set. Projects that want Bootstrap Icons
-stay on `hugolify-theme-bootstrap` and do not import this module.
+It is opinionated: Lucide is the only UI set. It is also opt-in — a project imports
+the module to get icons, and renders none if it doesn't.
 
 ## Architecture
 
 See [DESIGN.md](DESIGN.md) for the full design: mask rendering, the Hugo-native
-build (`templates.Defer`), brand handling, and the Bootstrap → Lucide migration
-reference.
+build (`templates.Defer`), brand handling, and content-naming migration.
 
 Requires Hugo ≥ **v0.128.0** (`templates.Defer`).
-
-> The SASS under `assets/sass/` is the legacy webfont system, kept as reference
-> until the mask-based engine lands.
 
 ## Documentations
 
