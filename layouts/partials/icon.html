@@ -1,0 +1,16 @@
+{{- /*
+  Hugolify icon — emits the markup and registers the name for the deferred
+  stylesheet built in head/icons.html. No SVG in the DOM.
+
+  Usage:
+    {{ partial "icon" "map-pin" }}        UI/content icon (Lucide)
+    {{ partial "icon" "brand:github" }}   brand icon (Simple Icons)
+*/ -}}
+{{- $dir := "ui" -}}
+{{- $name := . -}}
+{{- if strings.HasPrefix . "brand:" -}}
+  {{- $dir = "brands" -}}
+  {{- $name = strings.TrimPrefix "brand:" . -}}
+{{- end -}}
+{{- site.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
+<i class="icon icon-{{ $name }}" aria-hidden="true"></i>

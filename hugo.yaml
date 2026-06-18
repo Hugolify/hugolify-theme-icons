@@ -1,0 +1,23 @@
+module:
+
+  mounts:
+    - source: layouts
+      target: layouts
+
+  imports:
+
+    # Lucide — UI/content icons.
+    # Mounted to the role-based path "ui" (not the library name) so the engine
+    # stays library-agnostic: swapping Lucide for another set is a one-line change.
+    - path: github.com/lucide-icons/lucide
+      ignoreConfig: true
+      mounts:
+        - source: icons
+          target: assets/icons/ui
+
+    # Simple Icons — brands.
+    - path: github.com/simple-icons/simple-icons
+      ignoreConfig: true
+      mounts:
+        - source: icons
+          target: assets/icons/brands

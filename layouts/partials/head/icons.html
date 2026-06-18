@@ -1,0 +1,31 @@
+{{- /*
+  Deferred icon stylesheet.
+
+  Runs after every page has rendered (templates.Defer), so site.Store holds the
+  union of all icons used across the site. Emits a single fingerprinted CSS file
+  containing the base .icon rule plus one --icon-glyph per used icon — the subset
+  is produced natively, no Node, no font.
+
+  Included by hugolify-theme's head:
+    {{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}
+*/ -}}
+{{ with (templates.Defer (dict "key" "hugolify-icons")) }}
+  {{- $glyphs := slice -}}
+  {{- range site.Store.Get "usedIcons" | uniq -}}
+    {{- $parts := split . ":" -}}
+    {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
+    {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
+      {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
+      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s*\n\s*` `` -}}
+      {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
+    {{- else -}}
+      {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
+    {{- end -}}
+  {{- end -}}
+  {{- with $glyphs -}}
+    {{- $base := ".icon{background-color:currentColor;display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
+    {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
+    {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
+    <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>
+  {{- end -}}
+{{ end }}
