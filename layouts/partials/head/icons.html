@@ -16,14 +16,16 @@
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
       {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
-      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s*\n\s*` `` -}}
+      {{- /* collapse whitespace to a single space — NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
+      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
       {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
     {{- end -}}
   {{- end -}}
   {{- with $glyphs -}}
-    {{- $base := ".icon{background-color:currentColor;display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
+    {{- /* default glyph = empty SVG → an unmapped/missing icon is invisible, not a solid square */ -}}
+    {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
     {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
     {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
     <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>

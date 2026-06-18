@@ -156,7 +156,7 @@ Produces one fingerprinted CSS file containing only those icons. No lookup table
   {{- range site.Store.Get "usedIcons" | uniq -}}
     {{- $name := .name }}{{ $dir := .dir -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
-      {{- $clean := .Content | replaceRE `currentColor` `#000` | replaceRE `\s*\n\s*` `` -}}
+      {{- $clean := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
       {{- $css = $css | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($clean | base64Encode)) -}}
     {{- else -}}
       {{- warnf "icon %q not found in %q" $name $dir -}}
@@ -218,68 +218,7 @@ rendered the link simply shows its text label. Never the glyphs.
 - Bootstrap Icons stays in `hugolify-theme-bootstrap`; this module is not used
   there.
 - **Hugolify v2 content migration**: rewrite `icon-*` Bootstrap names to Lucide
-  names. The table below is the rename reference (grounded on the 179 names
-  actually used across the ecosystem, verified against `lucide-static@1.21.0`).
-
-### Identical (no rename)
-
-> archive, arrow-up-circle, bar-chart, binoculars, book, bookmark,
-> bookmark-check, box, braces, briefcase, building, calendar-heart,
-> calendar-range, check, check-circle, clock, cloud, cloud-rain, cloud-sun,
-> code, cookie, eye, files, fingerprint, globe, grip-horizontal, heart,
-> heart-pulse, hospital, hourglass, house, image, images, kanban, key, laptop,
-> layers, link, list, map, megaphone, newspaper, palette, percent, phone,
-> pie-chart, puzzle, qr-code, search, shield-check, sliders, sun, tag, tags,
-> terminal, truck, wallet
-
-### Rename (Bootstrap → Lucide)
-
-| Bootstrap | Lucide | Bootstrap | Lucide |
-| --- | --- | --- | --- |
-| airplane | plane | hand-thumbs-up | thumbs-up |
-| app, window-fullscreen | app-window | hdd-network | network |
-| arrows-fullscreen | maximize | house-add | house-plus |
-| blockquote-left | text-quote | houses | house |
-| body-text | text | info-circle | info |
-| box-arrow-up-right | external-link | input-cursor | text-cursor |
-| braces-asterisk | braces | input-cursor-text | text-cursor-input |
-| browser-chrome | chrome | journal-richtext | notebook-text |
-| browser-safari | compass | language, translate | languages |
-| buildings | building-2 | layout-three-columns | columns-3 |
-| calendar-date | calendar | link-45deg | link |
-| calendar-event | calendar-days | list-nested, tree | list-tree |
-| camera-reels | clapperboard | list-ol | list-ordered |
-| camera-video, videocam | video | mortarboard | graduation-cap |
-| card-heading | heading | paragraph | pilcrow |
-| card-image | image | text-paragraph | align-left |
-| caret-down | chevron-down | patch-check | badge-check |
-| chat | message-circle | patch-question | badge-help |
-| chat-square-quote | message-square-quote | pc-display-horizontal, display | monitor |
-| check-all | check-check | pencil-square | square-pen |
-| check2-circle | check-circle | people | users |
-| clipboard2-pulse | clipboard-plus | person | user |
-| clock-history | history | person-bounding-box | square-user |
-| cloud-arrow-up | cloud-upload | person-hearts | heart-handshake |
-| clouds | cloudy | person-plus | user-plus |
-| code-slash | code-xml | person-workspace | presentation |
-| collection | library | pin-map-fill, geo-alt | map-pin |
-| credit-card-2-front | credit-card | postcard, envelope | mail |
-| currency-euro | euro | envelope-at | at-sign |
-| database-add, database-check | database | puzzle-fill | puzzle |
-| emoji-smile | smile | search-heart | search |
-| exclamation-diamond, warning | triangle-alert | shield-slash | shield-off |
-| exclamation-octagon | octagon-alert | shop | store |
-| eyeglasses | glasses | soundwave | audio-waveform |
-| file-earmark | file | speedometer, speedometer2 | gauge |
-| file-earmark-code, filetype-* | file-code | telephone | phone |
-| file-earmark-image | file-image | tools | wrench |
-| file-earmark-richtext, -text | file-text | type-h2 | heading-2 |
-| file-font-fill | file-type | ui-checks | list-checks |
-| file-zip | file-archive | universal-access-circle | accessibility |
-| gear | settings | globe-europe-africa | globe |
-| git | git-branch | grid-3x2-gap | layout-grid |
-| graph-down-arrow | trending-down | hand-index | pointer |
-| graph-up-arrow | trending-up | &nbsp; | &nbsp; |
+  names.
 
 ### Brands → Simple Icons
 
@@ -298,6 +237,19 @@ generated stylesheet, so no separate CSS asset is needed.
 - **Not yet validated by a build.** Run `hugo mod get` in a consuming project and
   confirm the upstream module imports resolve and their SVGs live at
   `icons/*.svg` for `lucide-icons/lucide` and `simple-icons/simple-icons`.
+- **Lucide source caveat (important).** Go resolves modules by git tag, but the
+  `lucide-icons/lucide` repo **stopped tagging around v0.289.0** (late 2023). So
+  `@latest` caps at v0.289.0, which still uses legacy names (`home` not `house`,
+  `alert-octagon` not `octagon-alert`, `code` not `code-xml`, `columns` not
+  `columns-3`, `badge-help` not `badge-question-mark`); the `home → house` rename
+  landed in ~v0.292 and was never tagged. Current icons live only on `main`/npm.
+  Options:
+  - pin `@main` (pseudo-version of the latest commit:
+    `hugo mod get github.com/lucide-icons/lucide@main`) — note it is numerically
+    *below* v0.289.0, so a later `@latest` would silently regress;
+  - or source from npm `lucide-static` (properly versioned, current) or commit
+    curated SVGs in this module.
+  - `simple-icons` (`v2.17.1+incompatible`) likely has the same stale-tag gap.
 - **Legacy SASS** under `assets/sass/` is now orphaned (its `twbs/icons` import was
   removed from `hugo.yaml`) and is no longer mounted. Safe to delete — identical
   files remain in `hugolify-theme-bootstrap`.
