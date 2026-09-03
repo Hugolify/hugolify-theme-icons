@@ -26,3 +26,11 @@ module:
       mounts:
         - source: icons
           target: assets/icons/brands
+
+params:
+  icons:
+    # Stroke weight, in 24x24 viewBox units. Lucide ships 2, which reads heavy
+    # at UI sizes: this module deliberately lightens it to 1 and sites raise it
+    # if they want more presence. Baked into each glyph at build time (masks are
+    # opaque to runtime CSS). See DESIGN.md §5.
+    strokeWidth: 1

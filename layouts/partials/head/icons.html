@@ -6,18 +6,33 @@
   containing the base .icon rule plus one --icon-glyph per used icon — the subset
   is produced natively, no Node, no font.
 
+  Stroke weight is a build-time param, not a CSS variable: glyphs are painted as
+  masks from a base64-encoded SVG, so nothing at runtime can reach inside them.
+  See DESIGN.md §5.
+
   Included by hugolify-theme's head:
     {{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}
 */ -}}
 {{ with (templates.Defer (dict "key" "hugolify-icons")) }}
+  {{- /* keep in sync with the module default in hugo.yaml; Lucide's own is 2 */ -}}
+  {{- $stroke := 2 -}}
+  {{- with site.Params.icons -}}
+    {{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}
+  {{- end -}}
   {{- $glyphs := slice -}}
   {{- range site.Store.Get "usedIcons" | uniq -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
+      {{- $svg := .Content -}}
+      {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
+      {{- /* 2 is what the source already holds, so that value needs no rewrite */ -}}
+      {{- if and (eq $dir "ui") (ne $stroke 2) -}}
+        {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
+      {{- end -}}
       {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
       {{- /* collapse whitespace to a single space — NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
-      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
+      {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
       {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}

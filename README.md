@@ -13,6 +13,23 @@ no Node step).
 It is opinionated: Lucide is the only UI set. It is also opt-in — a project imports
 the module to get icons, and renders none if it doesn't.
 
+## Configuration
+
+Stroke weight is a design token. Lucide's native weight is `2`, which reads heavy
+at UI sizes, so **this module defaults to `1`** — importing it changes how icons
+look compared to using Lucide directly. Override it per site:
+
+```yaml
+# params.yaml
+icons:
+  strokeWidth: 1.5   # 2 restores Lucide's own weight
+```
+
+The unit is viewBox units (icons are 24x24), so the rendered thickness is
+`strokeWidth / 24 * --icon-size` — at the default 1em/16px, `1` gives 0.67px and
+`1.5` gives 1px. It is a build-time param rather than a CSS variable because masks
+are opaque to runtime CSS; see [DESIGN.md](DESIGN.md) §5.
+
 ## Architecture
 
 See [DESIGN.md](DESIGN.md) for the full design: mask rendering, the Hugo-native

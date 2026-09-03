@@ -114,6 +114,50 @@ module:
     - path: github.com/hugolify/hugolify-theme-icons
 ```
 
+### Stroke weight
+
+Lucide ships every icon at `stroke-width="2"`, which reads heavy at UI sizes. The
+module treats stroke weight as a design token and **overrides the library default**:
+Hugolify icons are `1` unless a site says otherwise.
+
+```yaml
+# hugo.yaml (this module) — opinionated default, not Lucide's
+params:
+  icons:
+    strokeWidth: 1
+```
+
+```yaml
+# a consuming project's params.yaml — back to Lucide's own weight
+icons:
+  strokeWidth: 2
+```
+
+This is a deliberate break from upstream, so it is worth stating plainly: importing
+this module changes how every Lucide icon looks compared to using Lucide directly.
+The value `2` is still a first-class choice, and setting it skips the rewrite
+entirely — it is what the source SVGs already contain.
+
+This is deliberately **not** a CSS variable. Glyphs are painted as `mask` from a
+base64-encoded SVG (§3), and a mask exposes only its alpha channel — no runtime
+custom property can reach the `stroke-width` attribute inside it. The value is
+therefore substituted into the SVG source before encoding, at build time.
+
+Two consequences:
+
+- The unit is **viewBox units**, not pixels. All Lucide icons are 24x24, so the
+  rendered thickness is `strokeWidth / 24 * --icon-size`. At the default
+  `--icon-size: 1em` (16px): `1` renders as 0.67px, `1.5` as 1px, `2` as 1.33px.
+  A weight of `1` is genuinely hairline at 16px and depends on the renderer's
+  antialiasing — `1.5` is the safer pick for icon-dense UIs.
+- The weight is **site-wide**. A per-component variant would require emitting a
+  second glyph set, doubling the stylesheet — not worth it for a design token that
+  should stay consistent anyway.
+
+The substitution is exhaustive and safe: all 1236 Lucide icons carry exactly one
+`stroke-width="2"`, on the root `<svg>`. It is scoped to `icons/ui/` — Simple Icons
+brands are solid fills and carry no stroke.
+
 ## 6. Brands — resolved by context
 
 A brand only appears in a known place: the social menu (`social.yml`). That
@@ -165,13 +209,21 @@ lookup table. The file is minified + fingerprinted **in production only**.
 
 ```go-html-template
 {{ with (templates.Defer (dict "key" "hugolify-icons")) }}
+  {{- /* default matches Lucide's own stroke-width, so an unset param changes nothing (§5) */ -}}
+  {{- $stroke := 2 -}}
+  {{- with site.Params.icons -}}{{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}{{- end -}}
   {{- $glyphs := slice -}}
   {{- range site.Store.Get "usedIcons" | uniq -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
+      {{- $svg := .Content -}}
+      {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
+      {{- if and (eq $dir "ui") (ne $stroke 2) -}}
+        {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
+      {{- end -}}
       {{- /* currentColor has no context in a mask → force opaque; collapse whitespace to ONE space (never empty: pretty-printed SVGs would glue their attributes) */ -}}
-      {{- $svg := .Content | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
+      {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
       {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
