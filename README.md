@@ -1,5 +1,7 @@
 # Hugolify theme icons
 
+<img width="1280" height="640" alt="share-hugolify-theme-icons" src="https://github.com/user-attachments/assets/12f905da-ce85-4b75-8c1d-b538124aa877" />
+
 The icon layer for modern Hugolify themes — **Lucide** for UI/content icons and
 **Simple Icons** for brands.
 
