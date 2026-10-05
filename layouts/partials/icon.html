@@ -7,10 +7,10 @@
     {{ partial "icon" "brand:github" }}   brand icon (Simple Icons)
 */ -}}
 {{- $dir := "ui" -}}
-{{- $name := . -}}
-{{- if strings.HasPrefix . "brand:" -}}
+{{- $name := strings.TrimSpace . -}}
+{{- if strings.HasPrefix $name "brand:" -}}
   {{- $dir = "brands" -}}
-  {{- $name = strings.TrimPrefix "brand:" . -}}
+  {{- $name = strings.TrimPrefix "brand:" $name | strings.TrimSpace -}}
 {{- end -}}
 {{- site.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
 <i class="icon icon-{{ $name }}" aria-hidden="true"></i>
