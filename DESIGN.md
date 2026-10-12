@@ -189,7 +189,7 @@ Emits markup only and registers the name for the deferred pass.
 {{- if strings.HasPrefix . "brand:" -}}
   {{- $dir = "brands" }}{{ $name = strings.TrimPrefix "brand:" . -}}
 {{- end -}}
-{{- site.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
+{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
 <i class="icon icon-{{ $name }}" aria-hidden="true"></i>
 ```
 
@@ -202,8 +202,15 @@ The base theme's `<head>` guards the include the same opt-in way as the call
 sites — `{{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}`
 (in `hugolify-theme`'s `partials/head/head.html`) — so this partial runs **only**
 when this module provides it. The `templates.Defer` block runs after all pages
-render, so `site.Store` holds
-every icon used site-wide. It emits one CSS file containing the base `.icon` rule
+of all languages render, so `hugo.Store` holds every icon used site-wide.
+
+The store is `hugo.Store`, not `site.Store`. Every language publishes the same
+`css/icons.css`, and `resources.FromString` caches by target path: whichever
+language builds it first wins for all of them. A per-language store dropped the
+icons used in one language only. The names are sorted so the parallel render
+order of the languages cannot change the fingerprint.
+
+It emits one CSS file containing the base `.icon` rule
 (§3, folded in) plus one `--icon-glyph` per used icon — no separate base asset, no
 lookup table. The file is minified + fingerprinted **in production only**.
 
@@ -213,7 +220,7 @@ lookup table. The file is minified + fingerprinted **in production only**.
   {{- $stroke := 2 -}}
   {{- with site.Params.icons -}}{{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}{{- end -}}
   {{- $glyphs := slice -}}
-  {{- range site.Store.Get "usedIcons" | uniq -}}
+  {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}

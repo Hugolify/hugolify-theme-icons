@@ -1,10 +1,16 @@
 {{- /*
   Deferred icon stylesheet.
 
-  Runs after every page has rendered (templates.Defer), so site.Store holds the
-  union of all icons used across the site. Emits a single fingerprinted CSS file
-  containing the base .icon rule plus one --icon-glyph per used icon — the subset
-  is produced natively, no Node, no font.
+  Runs after every page of every language has rendered (templates.Defer), so
+  hugo.Store holds the union of all icons used across the site. Emits a single
+  fingerprinted CSS file containing the base .icon rule plus one --icon-glyph
+  per used icon — the subset is produced natively, no Node, no font.
+
+  hugo.Store, not site.Store: resources.FromString caches by target path, so
+  every language gets the css/icons.css built first. With a per-language store,
+  an icon used in one language only was missing whenever another language won
+  that race. Sorted because languages render in parallel: the order they add
+  names in varies, and the fingerprint must not.
 
   Stroke weight is a build-time param, not a CSS variable: glyphs are painted as
   masks from a base64-encoded SVG, so nothing at runtime can reach inside them.
@@ -20,7 +26,7 @@
     {{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}
   {{- end -}}
   {{- $glyphs := slice -}}
-  {{- range site.Store.Get "usedIcons" | uniq -}}
+  {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
