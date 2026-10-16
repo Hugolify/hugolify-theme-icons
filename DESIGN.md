@@ -74,7 +74,7 @@ partial "icon" "map-pin"                      ← emits markup + registers the n
 templates.Defer (head/icons.html)             ← after full render: resolve → SVG
         │   resources.Get "icons/ui/map-pin.svg" → data-URI
         ▼
-css/icons.css (subset, fingerprinted in prod) ← one cached file, only used icons
+assets/css/icons.css (subset, fingerprinted in prod) ← one cached file, only used icons
         +
 <i class="icon icon-map-pin">                 ← lightweight DOM
 ```
@@ -205,7 +205,7 @@ when this module provides it. The `templates.Defer` block runs after all pages
 of all languages render, so `hugo.Store` holds every icon used site-wide.
 
 The store is `hugo.Store`, not `site.Store`. Every language publishes the same
-`css/icons.css`, and `resources.FromString` caches by target path: whichever
+`assets/css/icons.css`, and `resources.FromString` caches by target path: whichever
 language builds it first wins for all of them. A per-language store dropped the
 icons used in one language only. The names are sorted so the parallel render
 order of the languages cannot change the fingerprint.
@@ -238,7 +238,7 @@ lookup table. The file is minified + fingerprinted **in production only**.
   {{- end -}}
   {{- with $glyphs -}}
     {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
-    {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
+    {{- $res := resources.FromString "assets/css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
     {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
     <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>
   {{- end -}}

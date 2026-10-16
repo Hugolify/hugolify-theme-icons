@@ -7,7 +7,7 @@
   per used icon — the subset is produced natively, no Node, no font.
 
   hugo.Store, not site.Store: resources.FromString caches by target path, so
-  every language gets the css/icons.css built first. With a per-language store,
+  every language gets the assets/css/icons.css built first. With a per-language store,
   an icon used in one language only was missing whenever another language won
   that race. Sorted because languages render in parallel: the order they add
   names in varies, and the fingerprint must not.
@@ -47,7 +47,7 @@
   {{- with $glyphs -}}
     {{- /* default glyph = empty SVG → an unmapped/missing icon is invisible, not a solid square */ -}}
     {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
-    {{- $res := resources.FromString "css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
+    {{- $res := resources.FromString "assets/css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
     {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
     <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>
   {{- end -}}

@@ -12,6 +12,6 @@
   {{- $dir = "brands" -}}
   {{- $name = strings.TrimPrefix "brand:" $name | strings.TrimSpace -}}
 {{- end -}}
-{{- /* hugo.Store, not site.Store: every language shares one css/icons.css, so it must hold the union of all of them — see head/icons.html */ -}}
+{{- /* hugo.Store, not site.Store: every language shares one assets/css/icons.css, so it must hold the union of all of them — see head/icons.html */ -}}
 {{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
 <i class="icon icon-{{ $name }}" aria-hidden="true"></i>
