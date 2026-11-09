@@ -17,7 +17,7 @@
   See DESIGN.md §5.
 
   Included by hugolify-theme's head:
-    {{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}
+    {{ if templates.Exists "_partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}
 */ -}}
 {{ with (templates.Defer (dict "key" "hugolify-icons")) }}
   {{- /* keep in sync with the module default in hugo.yaml; Lucide's own is 2 */ -}}
