@@ -27,8 +27,10 @@
   {{- end -}}
   {{- $glyphs := slice -}}
   {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
+    {{- /* "dir:name", or "dir:name:solid" for an icon asked for filled in */ -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
+    {{- $solid := and (gt (len $parts) 2) (eq (index $parts 2) "solid") -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
       {{- $svg := .Content -}}
       {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
@@ -36,10 +38,18 @@
       {{- if and (eq $dir "ui") (ne $stroke 2) -}}
         {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
       {{- end -}}
+      {{- /* solid: every Lucide icon carries exactly one fill="none", on the root <svg> — painting it in
+             currentColor, as one fills a Lucide icon inline, fills every shape the stroke draws; the stroke
+             stays on top so the outline keeps its weight and joins. The line below makes it opaque for the mask */ -}}
+      {{- if $solid -}}
+        {{- $svg = replaceRE `fill="none"` `fill="currentColor"` $svg -}}
+      {{- end -}}
       {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
       {{- /* collapse whitespace to a single space — NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
       {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
+      {{- /* .icon-star.icon-solid outranks .icon-star, so both renderings of one icon live side by side */ -}}
+      {{- $selector := printf ".icon-%s%s" $name (cond $solid ".icon-solid" "") -}}
+      {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
     {{- end -}}

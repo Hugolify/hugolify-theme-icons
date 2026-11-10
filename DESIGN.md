@@ -158,6 +158,36 @@ The substitution is exhaustive and safe: all 1236 Lucide icons carry exactly one
 `stroke-width="2"`, on the root `<svg>`. It is scoped to `icons/ui/` — Simple Icons
 brands are solid fills and carry no stroke.
 
+### Solid — `solid:`
+
+Lucide is outline-only: no icon ships filled, and there is no `star-fill` to ask
+for (that `-fill` suffix is another set's convention, see §2). A filled glyph is
+still sometimes the right one — the stars of a rating, a toggled heart or
+bookmark — and a mask cannot fill an outline at runtime: it only lets colour
+through what the SVG draws.
+
+So filling is a build-time rendering of the Lucide icon, asked for with a
+prefix, the way `brand:` is:
+
+```go-html-template
+{{ partial "icon" "solid:star" }}   → <i class="icon icon-star icon-solid">
+```
+
+The name stays the Lucide name. The engine turns the root `fill="none"` into
+`fill="currentColor"` — every Lucide icon carries exactly one, on the root
+`<svg>` (2046 of 2046 at the pinned commit), and `currentColor` is how one fills
+a Lucide icon inline — so every shape the stroke draws is filled in, and the
+stroke stays on top, keeping the outline's weight and round joins. Like every
+other `currentColor`, it then becomes opaque black for the mask (§3): the
+colour on screen is still the `.icon` background, `--icon-color`. The rule is
+`.icon-star.icon-solid`, which outranks `.icon-star`: both renderings of one icon
+can be used on the same page.
+
+It suits silhouettes — closed shapes such as `star`, `heart`, `bookmark`,
+`circle`. On an icon drawn with inner detail or open strokes, filling paints over
+that detail; pick another icon rather than fill that one. `solid:` is ignored on
+a brand, which is a solid fill already.
+
 ## 6. Brands — resolved by context
 
 A brand only appears in a known place: the social menu (`social.yml`). That
@@ -185,16 +215,20 @@ no alias layer; slug accuracy is a `social.yml` content convention.
 Emits markup only and registers the name for the deferred pass.
 
 ```go-html-template
-{{- $dir := "ui" }}{{ $name := . -}}
-{{- if strings.HasPrefix . "brand:" -}}
-  {{- $dir = "brands" }}{{ $name = strings.TrimPrefix "brand:" . -}}
+{{- $dir := "ui" }}{{ $name := . }}{{ $solid := false -}}
+{{- if strings.HasPrefix $name "solid:" -}}
+  {{- $solid = true }}{{ $name = strings.TrimPrefix "solid:" $name -}}
 {{- end -}}
-{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
-<i class="icon icon-{{ $name }}" aria-hidden="true"></i>
+{{- if strings.HasPrefix $name "brand:" -}}
+  {{- $dir = "brands" }}{{ $solid = false }}{{ $name = strings.TrimPrefix "brand:" $name -}}
+{{- end -}}
+{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s%s" $dir $name (cond $solid ":solid" ""))) -}}
+<i class="icon icon-{{ $name }}{{ if $solid }} icon-solid{{ end }}" aria-hidden="true"></i>
 ```
 
 Each used icon is registered as a `"dir:name"` string (e.g. `ui:map-pin`,
-`brands:github`); the deferred pass splits it back on `:`.
+`brands:github`), with a third `:solid` part when it is asked for filled in
+(`ui:star:solid`, §5); the deferred pass splits it back on `:`.
 
 ### Engine — `layouts/partials/head/icons.html`
 
@@ -223,15 +257,19 @@ lookup table. The file is minified + fingerprinted **in production only**.
   {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
+    {{- $solid := and (gt (len $parts) 2) (eq (index $parts 2) "solid") -}}
     {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
       {{- $svg := .Content -}}
       {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
       {{- if and (eq $dir "ui") (ne $stroke 2) -}}
         {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
       {{- end -}}
+      {{- /* solid: paint the root fill="none" (§5) */ -}}
+      {{- if $solid }}{{ $svg = replaceRE `fill="none"` `fill="currentColor"` $svg }}{{ end -}}
       {{- /* currentColor has no context in a mask → force opaque; collapse whitespace to ONE space (never empty: pretty-printed SVGs would glue their attributes) */ -}}
       {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- $glyphs = $glyphs | append (printf ".icon-%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $name ($svg | base64Encode)) -}}
+      {{- $selector := printf ".icon-%s%s" $name (cond $solid ".icon-solid" "") -}}
+      {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
     {{- end -}}

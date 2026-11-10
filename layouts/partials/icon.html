@@ -5,13 +5,26 @@
   Usage:
     {{ partial "icon" "map-pin" }}        UI/content icon (Lucide)
     {{ partial "icon" "brand:github" }}   brand icon (Simple Icons)
+    {{ partial "icon" "solid:star" }}     UI icon filled in — the same Lucide
+                                          glyph with its shape painted, not
+                                          only its stroke (see DESIGN.md §5)
+
+  The name stays the Lucide one: solid: is a rendering of that icon, not
+  another icon. Brands are solid fills already, so solid: changes nothing for
+  them.
 */ -}}
 {{- $dir := "ui" -}}
 {{- $name := strings.TrimSpace . -}}
+{{- $solid := false -}}
+{{- if strings.HasPrefix $name "solid:" -}}
+  {{- $solid = true -}}
+  {{- $name = strings.TrimPrefix "solid:" $name | strings.TrimSpace -}}
+{{- end -}}
 {{- if strings.HasPrefix $name "brand:" -}}
   {{- $dir = "brands" -}}
+  {{- $solid = false -}}
   {{- $name = strings.TrimPrefix "brand:" $name | strings.TrimSpace -}}
 {{- end -}}
 {{- /* hugo.Store, not site.Store: every language shares one assets/css/icons.css, so it must hold the union of all of them — see head/icons.html */ -}}
-{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s" $dir $name)) -}}
-<i class="icon icon-{{ $name }}" aria-hidden="true"></i>
+{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s%s" $dir $name (cond $solid ":solid" ""))) -}}
+<i class="icon icon-{{ $name }}{{ if $solid }} icon-solid{{ end }}" aria-hidden="true"></i>
