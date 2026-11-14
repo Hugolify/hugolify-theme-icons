@@ -12,6 +12,11 @@
   The name stays the Lucide one: solid: is a rendering of that icon, not
   another icon. Brands are solid fills already, so solid: changes nothing for
   them.
+
+  The class keeps the prefix: icon-map-pin, icon-brand-github,
+  icon-solid-star. One stylesheet serves the whole site, and a brand can share
+  its name with a UI icon (x, apple…): without the prefix, both would get the
+  glyph written last.
 */ -}}
 {{- $dir := "ui" -}}
 {{- $name := strings.TrimSpace . -}}
@@ -27,4 +32,5 @@
 {{- end -}}
 {{- /* hugo.Store, not site.Store: every language shares one assets/css/icons.css, so it must hold the union of all of them — see head/icons.html */ -}}
 {{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s%s" $dir $name (cond $solid ":solid" ""))) -}}
-<i class="icon icon-{{ $name }}{{ if $solid }} icon-solid{{ end }}" aria-hidden="true"></i>
+{{- $prefix := cond (eq $dir "brands") "brand-" (cond $solid "solid-" "") -}}
+<i class="icon icon-{{ $prefix }}{{ $name }}" aria-hidden="true"></i>

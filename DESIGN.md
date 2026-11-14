@@ -170,7 +170,7 @@ So filling is a build-time rendering of the Lucide icon, asked for with a
 prefix, the way `brand:` is:
 
 ```go-html-template
-{{ partial "icon" "solid:star" }}   → <i class="icon icon-star icon-solid">
+{{ partial "icon" "solid:star" }}   → <i class="icon icon-solid-star">
 ```
 
 The name stays the Lucide name. The engine turns the root `fill="none"` into
@@ -179,9 +179,9 @@ The name stays the Lucide name. The engine turns the root `fill="none"` into
 a Lucide icon inline — so every shape the stroke draws is filled in, and the
 stroke stays on top, keeping the outline's weight and round joins. Like every
 other `currentColor`, it then becomes opaque black for the mask (§3): the
-colour on screen is still the `.icon` background, `--icon-color`. The rule is
-`.icon-star.icon-solid`, which outranks `.icon-star`: both renderings of one icon
-can be used on the same page.
+colour on screen is still the `.icon` background, `--icon-color`. The class is
+`icon-solid-star`, one of its own: `icon-star` keeps the outline, so both
+renderings of one icon can be used on the same page.
 
 It suits silhouettes — closed shapes such as `star`, `heart`, `bookmark`,
 `circle`. On an icon drawn with inner detail or open strokes, filling paints over
@@ -199,11 +199,15 @@ author writes nothing special.
 {{ partial "icon" (printf "brand:%s" (lower .title)) }}
 ```
 
-This also disambiguates names that exist in both sets:
+This also disambiguates names that exist in both sets, 34 at the pinned commits
+(`x`, `apple`, `rss`, `bluetooth`…):
 
-- `apple` in content → `icons/ui/apple.svg` (the Lucide apple).
+- `apple` in content → `icons/ui/apple.svg` (the Lucide apple), class `icon-apple`.
 - `apple` in the social menu → `brand:apple` → `icons/brands/apple.svg` (the
-  Apple logo).
+  Apple logo), class `icon-brand-apple`.
+
+The class keeps the prefix because one stylesheet serves the whole site (§7): a
+shared `icon-apple` would give both the glyph written last, wherever each is used.
 
 Brand names must match Simple Icons slugs (e.g. use `x`, not `twitter`). There is
 no alias layer; slug accuracy is a `social.yml` content convention.
@@ -223,12 +227,18 @@ Emits markup only and registers the name for the deferred pass.
   {{- $dir = "brands" }}{{ $solid = false }}{{ $name = strings.TrimPrefix "brand:" $name -}}
 {{- end -}}
 {{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s%s" $dir $name (cond $solid ":solid" ""))) -}}
-<i class="icon icon-{{ $name }}{{ if $solid }} icon-solid{{ end }}" aria-hidden="true"></i>
+{{- $prefix := cond (eq $dir "brands") "brand-" (cond $solid "solid-" "") -}}
+<i class="icon icon-{{ $prefix }}{{ $name }}" aria-hidden="true"></i>
 ```
 
 Each used icon is registered as a `"dir:name"` string (e.g. `ui:map-pin`,
 `brands:github`), with a third `:solid` part when it is asked for filled in
 (`ui:star:solid`, §5); the deferred pass splits it back on `:`.
+
+The class mirrors the name, prefix included: `map-pin` gives `icon-map-pin`,
+`brand:github` gives `icon-brand-github`, `solid:star` gives `icon-solid-star`.
+No Lucide name starts with `brand-` or `solid-`, so a prefixed class never meets
+a plain one, and each glyph has exactly one selector.
 
 ### Engine — `layouts/partials/head/icons.html`
 
@@ -268,7 +278,7 @@ lookup table. The file is minified + fingerprinted **in production only**.
       {{- if $solid }}{{ $svg = replaceRE `fill="none"` `fill="currentColor"` $svg }}{{ end -}}
       {{- /* currentColor has no context in a mask → force opaque; collapse whitespace to ONE space (never empty: pretty-printed SVGs would glue their attributes) */ -}}
       {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- $selector := printf ".icon-%s%s" $name (cond $solid ".icon-solid" "") -}}
+      {{- $selector := printf ".icon-%s%s" (cond (eq $dir "brands") "brand-" (cond $solid "solid-" "")) $name -}}
       {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
@@ -368,6 +378,8 @@ generated stylesheet, so no separate CSS asset is needed.
   `assets/icons/brands/linkedin.svg`; the local `assets` mount (§5) takes precedence
   over the imports, so it fills the gap. This re-introduces the trademark exposure
   Simple Icons avoided — a deliberate, accepted call.
-- **Class collision:** a page using both a UI `github` and a `brand:github` emits
-  the same `.icon-github` twice with different glyphs. Namespace brand classes
-  (e.g. `.icon-brand-github`) if this case is real.
+- **Class collision, resolved:** a UI `x` and a `brand:x` used anywhere on one
+  site emitted the same `.icon-x` twice, and both showed the glyph written last
+  (Lucide's cross in place of the X logo). Brand classes are now `icon-brand-*`,
+  and filled icons `icon-solid-*` rather than `icon-* icon-solid`, which also
+  keeps `brand:solid` (SolidJS) off the class of the modifier (§6, §7).

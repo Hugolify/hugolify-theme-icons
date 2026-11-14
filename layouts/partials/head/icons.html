@@ -47,8 +47,9 @@
       {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
       {{- /* collapse whitespace to a single space — NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
       {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- /* .icon-star.icon-solid outranks .icon-star, so both renderings of one icon live side by side */ -}}
-      {{- $selector := printf ".icon-%s%s" $name (cond $solid ".icon-solid" "") -}}
+      {{- /* the class of partials/icon.html, prefix included: .icon-x is Lucide's cross, .icon-brand-x the X logo,
+             .icon-solid-star the filled star. No Lucide name starts with brand- or solid-, so no two glyphs share a selector */ -}}
+      {{- $selector := printf ".icon-%s%s" (cond (eq $dir "brands") "brand-" (cond $solid "solid-" "")) $name -}}
       {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
     {{- else -}}
       {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
