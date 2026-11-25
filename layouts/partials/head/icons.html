@@ -4,7 +4,7 @@
   Runs after every page of every language has rendered (templates.Defer), so
   hugo.Store holds the union of all icons used across the site. Emits a single
   fingerprinted CSS file containing the base .icon rule plus one --icon-glyph
-  per used icon — the subset is produced natively, no Node, no font.
+  per used icon: the subset is produced natively, no Node, no font.
 
   hugo.Store, not site.Store: resources.FromString caches by target path, so
   every language gets the assets/css/icons.css built first. With a per-language store,
@@ -20,43 +20,57 @@
     {{ if templates.Exists "_partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}
 */ -}}
 {{ with (templates.Defer (dict "key" "hugolify-icons")) }}
-  {{- /* keep in sync with the module default in hugo.yaml; Lucide's own is 2 */ -}}
+  {{- /* keep in sync with the module default in hugo.yaml; Lucide's and Tabler's own is 2 */ -}}
   {{- $stroke := 2 -}}
   {{- with site.Params.icons -}}
     {{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}
   {{- end -}}
+  {{- $default := partialCached "func/icons/GetDefaultSet.html" "icons" -}}
   {{- $glyphs := slice -}}
   {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
     {{- /* "dir:name", or "dir:name:solid" for an icon asked for filled in */ -}}
     {{- $parts := split . ":" -}}
     {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
     {{- $solid := and (gt (len $parts) 2) (eq (index $parts 2) "solid") -}}
-    {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
+    {{- /* a name of the default set looks in the site's own assets/icons/ui/ first: no module mounts
+           that folder, so a site keeps its own icons there, whatever the default set (DESIGN.md §4) */ -}}
+    {{- $svgFile := false -}}
+    {{- if eq $dir $default -}}
+      {{- $svgFile = resources.Get (printf "icons/ui/%s.svg" $name) -}}
+    {{- end -}}
+    {{- with or $svgFile (resources.Get (printf "icons/%s/%s.svg" $dir $name)) -}}
       {{- $svg := .Content -}}
-      {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
-      {{- /* 2 is what the source already holds, so that value needs no rewrite */ -}}
-      {{- if and (eq $dir "ui") (ne $stroke 2) -}}
+      {{- /* outline sets (Lucide, Tabler) carry exactly one stroke-width="2", on the root <svg>; brands are
+             solid fills and have none. 2 is what the source already holds, so that value needs no rewrite */ -}}
+      {{- if and (ne $dir "brands") (ne $stroke 2) -}}
         {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
       {{- end -}}
-      {{- /* solid: every Lucide icon carries exactly one fill="none", on the root <svg> — painting it in
-             currentColor, as one fills a Lucide icon inline, fills every shape the stroke draws; the stroke
-             stays on top so the outline keeps its weight and joins. The line below makes it opaque for the mask */ -}}
+      {{- /* solid: outline sets carry exactly one fill="none", on the root <svg>. Painting it in currentColor,
+             as one fills such an icon inline, fills every shape the stroke draws; the stroke stays on top so
+             the outline keeps its weight and joins. The line below makes it opaque for the mask */ -}}
       {{- if $solid -}}
         {{- $svg = replaceRE `fill="none"` `fill="currentColor"` $svg -}}
       {{- end -}}
+      {{- /* comments draw nothing and would only weigh on the stylesheet: Tabler opens every icon with its metadata */ -}}
+      {{- $svg = replaceRE `(?s)<!--.*?-->\s*` `` $svg -}}
       {{- /* currentColor has no context inside a mask; force an opaque color (alpha is all that matters) */ -}}
-      {{- /* collapse whitespace to a single space — NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
+      {{- /* collapse whitespace to a single space, NOT to empty, or pretty-printed SVGs glue their attributes */ -}}
       {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- /* the class of partials/icon.html, prefix included: .icon-x is Lucide's cross, .icon-brand-x the X logo,
-             .icon-solid-star the filled star. No Lucide name starts with brand- or solid-, so no two glyphs share a selector */ -}}
-      {{- $selector := printf ".icon-%s%s" (cond (eq $dir "brands") "brand-" (cond $solid "solid-" "")) $name -}}
+      {{- /* the class of partials/icon.html: .icon-x is Lucide's cross, .icon-brand-x the X logo, .icon-solid-star
+             the filled star, .icon-tabler-x Tabler's cross. One rule for both, see func/icons/GetClass.html */ -}}
+      {{- $selector := printf ".icon-%s" (partial "func/icons/GetClass.html" (dict "dir" $dir "name" $name "solid" $solid)) -}}
       {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
     {{- else -}}
-      {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
+      {{- /* only reached for a missing icon: tell a set that isn't installed from a name it doesn't have */ -}}
+      {{- if resources.GetMatch (printf "icons/%s/*.svg" $dir) -}}
+        {{- warnf "[icons] %q not found in icons/%s/: the %s set has no icon of that name" $name $dir $dir -}}
+      {{- else -}}
+        {{- warnf "[icons] %q not found: no icons/%s/ folder, import github.com/hugolify/hugolify-theme-icons-%s" $name $dir (cond (eq $dir "brands") "simple-icons" $dir) -}}
+      {{- end -}}
     {{- end -}}
   {{- end -}}
   {{- with $glyphs -}}
-    {{- /* default glyph = empty SVG → an unmapped/missing icon is invisible, not a solid square */ -}}
+    {{- /* default glyph = empty SVG, so an unmapped or missing icon is invisible, not a solid square */ -}}
     {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
     {{- $res := resources.FromString "assets/css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
     {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}

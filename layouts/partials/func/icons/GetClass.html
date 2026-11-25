@@ -1,0 +1,37 @@
+{{- /*
+  The class of an icon, without its "icon-" start. Shared by partials/icon.html
+  (the markup) and head/icons.html (the selector), so the two always agree.
+
+  @context dict
+    dir    (string) folder under assets/icons/: a set name, or "brands"
+    name   (string) icon name in that folder
+    solid  (bool)   filled rendering (see DESIGN.md §5)
+
+  @returns
+    map-pin            the default set carries no prefix
+    solid-star         filled
+    brand-github       a brand (solid does not apply)
+    tabler-ladder      another set carries its name
+    solid-tabler-star
+
+  One stylesheet serves the whole site, and two sets can share a name (x is
+  Lucide's cross and the X logo): without the prefix, both would get the glyph
+  written last. The default set has none, so the classes of a site that uses
+  Lucide only stay as they always were.
+
+  brand- and solid- start classes of their own, so a default-set name that
+  starts with one of them keeps its set prefix: with Tabler as the default,
+  its brand-github is icon-tabler-brand-github, not the icon-brand-github of
+  Simple Icons. No Lucide name starts with either.
+*/ -}}
+{{- $prefix := "" -}}
+{{- if eq .dir "brands" -}}
+  {{- $prefix = "brand-" -}}
+{{- else -}}
+  {{- if .solid -}}{{- $prefix = "solid-" -}}{{- end -}}
+  {{- $reserved := or (strings.HasPrefix .name "brand-") (strings.HasPrefix .name "solid-") -}}
+  {{- if or $reserved (ne .dir (partialCached "func/icons/GetDefaultSet.html" "icons")) -}}
+    {{- $prefix = printf "%s%s-" $prefix .dir -}}
+  {{- end -}}
+{{- end -}}
+{{- return printf "%s%s" $prefix .name -}}

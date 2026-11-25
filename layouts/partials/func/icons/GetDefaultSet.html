@@ -1,0 +1,15 @@
+{{- /*
+  The icon set that draws the names written without a prefix: params.icons.set,
+  "lucide" when unset.
+
+  The default is repeated here, not only in this module's hugo.yaml, so a site
+  that defines its own params.icons can never lose it.
+
+  @example
+    {{ $set := partialCached "func/icons/GetDefaultSet.html" "icons" }}
+*/ -}}
+{{- $set := "lucide" -}}
+{{- with site.Params.icons -}}
+  {{- with .set -}}{{- $set = . -}}{{- end -}}
+{{- end -}}
+{{- return $set -}}

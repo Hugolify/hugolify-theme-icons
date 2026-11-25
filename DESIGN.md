@@ -1,15 +1,13 @@
-# Hugolify Theme Icons — Design
+# Hugolify Theme Icons: Design
 
-The icon layer for modern Hugolify themes. It renders **Lucide** for UI/content
-icons and **Simple Icons** for brands, as SVG masks (`currentColor`), with no
-webfont and no project-side build step.
+The icon layer for modern Hugolify themes. This module is the **engine**: it
+renders icons as SVG masks (`currentColor`), with no webfont and no
+project-side build step. The icons themselves come from **set modules**, one
+per icon set. Two are imported by default: **Lucide** for UI and content icons,
+**Simple Icons** for brands. Others, such as Tabler, are added by a site.
 
-It is **opinionated**: Lucide is the only UI set. It is also **opt-in** — a project
-imports the module to get icons, and renders none if it doesn't (see §7).
-
-> Status: **implemented, not yet validated by a build** (see §9). The mask-based
-> engine — `hugo.yaml`, `layouts/partials/icon.html`,
-> `layouts/partials/head/icons.html` — is in place.
+It is **opt-in**: a project imports the module to get icons, and renders none if
+it doesn't (see §7).
 
 ---
 
@@ -17,22 +15,28 @@ imports the module to get icons, and renders none if it doesn't (see §7).
 
 - **Modern rendering.** SVG masks, not a webfont: no FOUT/tofu, no Private Use
   Area glyphs, baseline-aligned, inherits `currentColor`.
-- **Lightweight DOM.** The rendered output is a single `<i class="icon icon-NAME">`
-  — no inline SVG, no inline style.
+- **Lightweight DOM.** The rendered output is a single `<i class="icon icon-NAME">`:
+  no inline SVG, no inline style.
 - **No project-side build step.** Shipping only the icons actually used (the
-  "subset") is produced natively by Hugo — no Node, no `subset-font`.
-- **Direct naming.** Content references Lucide names (`map-pin`). There is no
-  translation layer.
+  "subset") is produced natively by Hugo: no Node, no `subset-font`.
+- **Direct naming.** Content references the set's own names (`map-pin`). There
+  is no translation layer.
+- **Light by default.** A site downloads only the sets it uses: the engine holds
+  no icon, and each set is a module of its own.
 
-## 2. Naming — Lucide, directly
+## 2. Naming: the set's names, directly
 
-Content uses Lucide names as-is. `{{ partial "icon" "map-pin" }}` →
-`icons/ui/map-pin.svg`. There is **no mapping table** (`data/icons.yaml` does not
-exist): the name *is* the filename.
+Content uses the names of the default set as-is: `{{ partial "icon" "map-pin" }}`
+gives `icons/lucide/map-pin.svg`. There is **no mapping table**
+(`data/icons.yaml` does not exist): the name *is* the filename.
 
-Content authored with non-Lucide names (e.g. an older `pin-map-fill`) is **not**
-bridged at runtime — there is no alias layer. Such content is rewritten to Lucide
-names (`icon-map-pin`) ahead of time, by the Hugolify v2 content migration (§8).
+Another set is reached with its name as a prefix: `tabler:ladder` gives
+`icons/tabler/ladder.svg`. Brands use `brand:` (§6).
+
+Content authored with names of another set (e.g. an older Bootstrap
+`pin-map-fill`) is **not** bridged at runtime: there is no alias layer. Such
+content is rewritten to the default set's names ahead of time, by the Hugolify
+v2 content migration (§8).
 
 ## 3. Why mask, not webfont
 
@@ -43,7 +47,7 @@ Every icon is rendered the same way:
 ```css
 @layer components {
   .icon {
-    /* default glyph = empty SVG → an unmapped icon is invisible, not a solid square */
+    /* default glyph = empty SVG, so an unmapped icon is invisible, not a solid square */
     --icon-glyph: url('data:image/svg+xml,%3Csvg/%3E');
     background-color: var(--icon-color, currentColor);
     display: inline-block;
@@ -56,7 +60,7 @@ Every icon is rendered the same way:
 ```
 
 Icons differ only by their `--icon-glyph` (an inline SVG data-URI). The SVG is an
-**alpha mask**, so its own colors are irrelevant — the final color comes from
+**alpha mask**, so its own colors are irrelevant: the final color comes from
 `background-color: var(--icon-color, currentColor)`. This base rule is not a
 separate file: it is folded into the generated stylesheet (see §7).
 
@@ -67,43 +71,117 @@ instead of a mask.
 ## 4. Architecture
 
 ```text
-content: icon-map-pin                         ← Lucide name, directly
+content: map-pin, tabler:ladder, brand:github
         │
-partial "icon" "map-pin"                      ← emits markup + registers the name
+partial "icon"                                ← emits markup + registers "dir:name"
         │
 templates.Defer (head/icons.html)             ← after full render: resolve → SVG
-        │   resources.Get "icons/ui/map-pin.svg" → data-URI
+        │   resources.Get "icons/<dir>/<name>.svg" → data-URI
         ▼
 assets/css/icons.css (subset, fingerprinted in prod) ← one cached file, only used icons
         +
 <i class="icon icon-map-pin">                 ← lightweight DOM
 ```
 
-Two sources, mounted by this module:
+### Engine and set modules
 
-- `assets/icons/ui/` ← Lucide
-- `assets/icons/brands/` ← Simple Icons
+| Module | Mounts | Prefix | Imported |
+| --- | --- | --- | --- |
+| `hugolify-theme-icons` | partials only | | by the site |
+| `hugolify-theme-icons-lucide` | `assets/icons/lucide/` | `lucide:` | by the engine |
+| `hugolify-theme-icons-simple-icons` | `assets/icons/brands/` | `brand:` | by the engine |
+| `hugolify-theme-icons-tabler` | `assets/icons/tabler/` | `tabler:` | by the site, if wanted |
 
-The UI mount target is the **role** (`ui`), not the library name, so swapping
-Lucide for another set later (Phosphor, Heroicons…) is a one-line mount change
-with no engine change. There is no runtime selection and no `params.icons.ui`.
+The engine resolves `set:name` to `assets/icons/<set>/<name>.svg`, so a new set
+needs **no engine change**: its module mounts its icons in its own folder.
+`brand:` is the one exception, its folder is `brands`.
 
-## 5. Module config — `hugo.yaml`
+A set module:
+
+- mounts its SVGs to `assets/icons/<set>/` and pins its upstream source;
+- **never imports the engine**: the site imports the engine, and a set module
+  that did would bring the default sets back past the site's `ignoreImports`;
+- if it can serve as the default set, ships the names the Hugolify themes call
+  directly and it lacks, as local SVG aliases (§7, theme vocabulary).
+
+Hugo cannot condition an import on a param (an import only takes `path`,
+`version`, `disable`, `ignoreConfig`, `ignoreImports`, `noMounts`, `noVendor`,
+`usePackageJSON`). Each added set therefore costs one import line. The
+alternative, an engine importing every set and a param choosing among them,
+would make every site download every set: rejected.
+
+### The default set: `params.icons.set`
+
+`params.icons.set` (default `lucide`) names the set that draws the names written
+without a prefix. It is a **rendering** setting: it also switches the icons the
+themes call directly (`play`, `pause`, `contact-round`, `map-pin`, `solid:star`)
+to that set. Importing a set module never changes it: the module is then a
+complement, reached with its prefix, until the site sets the param.
+
+```yaml
+# config/_default/module.yaml: Tabler as a complement ("tabler:ladder")
+imports:
+  - path: github.com/hugolify/hugolify-theme-icons-tabler
+```
+
+```yaml
+# config/_default/params.yaml: Tabler as the default set ("ladder", and the themes' play, pause...)
+icons:
+  set: tabler
+```
+
+Lucide and Simple Icons then stay in the module cache, with no effect on the
+published site. A site that wants them gone imports the engine with
+`ignoreImports: true`, and imports `hugolify-theme-icons-simple-icons` again if it
+wants brands.
+
+The default is repeated in `func/icons/GetDefaultSet.html`, not only in this
+module's `hugo.yaml`, so a site with its own `params.icons` can never lose it.
+
+### The site's own icons: `assets/icons/ui/`
+
+A name of the default set is looked up in `assets/icons/ui/` first, then in the
+set's folder. No module mounts `ui` (Lucide was mounted there until v1.7.0), so
+that folder holds a site's own icons, whatever the default set, and a site that
+had put SVGs there keeps the same rendering.
+
+### Classes
+
+The class mirrors the name, prefix included, except the default set's
+(`func/icons/GetClass.html`, shared by the markup and the selector):
+
+| Call | Class |
+| --- | --- |
+| `map-pin` | `icon-map-pin` |
+| `solid:star` | `icon-solid-star` |
+| `brand:github` | `icon-brand-github` |
+| `tabler:ladder` | `icon-tabler-ladder` |
+| `solid:tabler:star` | `icon-solid-tabler-star` |
+| `lucide:map-pin` (Lucide is the default) | `icon-map-pin` |
+
+One stylesheet serves the whole site, and two sets can share a name (726
+names between Lucide and Tabler; `x` is Lucide's cross and the X logo): without
+the prefix, both would get the glyph written last.
+
+`brand-` and `solid-` start classes of their own, so a default-set name starting
+with one of them keeps its set prefix: with Tabler as the default, its
+`brand-github` is `icon-tabler-brand-github`, not the `icon-brand-github` of
+Simple Icons. No Lucide name starts with either, and no Lucide name starts with
+`tabler-`, so the classes of a Lucide site are exactly those of v1.6.0.
+
+## 5. Module config: `hugo.yaml`
 
 ```yaml
 module:
   mounts:
     - { source: layouts, target: layouts }
-    # local assets win over the imported icon modules below → curated brands
-    # (e.g. linkedin, dropped by both upstreams) fill the gaps. See §6 and §9.
-    - { source: assets, target: assets }
   imports:
-    - path: github.com/lucide-icons/lucide        # UI/content icons
-      ignoreConfig: true
-      mounts: [{ source: icons, target: assets/icons/ui }]
-    - path: github.com/simple-icons/simple-icons  # brands
-      ignoreConfig: true
-      mounts: [{ source: icons, target: assets/icons/brands }]
+    - path: github.com/hugolify/hugolify-theme-icons-lucide        # default set
+    - path: github.com/hugolify/hugolify-theme-icons-simple-icons  # brands
+params:
+  icons:
+    set: lucide
+    strokeWidth: 1
 ```
 
 A consuming project just imports the module:
@@ -116,79 +194,79 @@ module:
 
 ### Stroke weight
 
-Lucide ships every icon at `stroke-width="2"`, which reads heavy at UI sizes. The
-module treats stroke weight as a design token and **overrides the library default**:
-Hugolify icons are `1` unless a site says otherwise.
+Lucide and Tabler ship every icon at `stroke-width="2"`, which reads heavy at UI
+sizes. The module treats stroke weight as a design token and **overrides the
+library default**: Hugolify icons are `1` unless a site says otherwise.
 
 ```yaml
-# hugo.yaml (this module) — opinionated default, not Lucide's
-params:
-  icons:
-    strokeWidth: 1
-```
-
-```yaml
-# a consuming project's params.yaml — back to Lucide's own weight
+# a consuming project's params.yaml: back to the libraries' own weight
 icons:
   strokeWidth: 2
 ```
 
 This is a deliberate break from upstream, so it is worth stating plainly: importing
-this module changes how every Lucide icon looks compared to using Lucide directly.
-The value `2` is still a first-class choice, and setting it skips the rewrite
-entirely — it is what the source SVGs already contain.
+this module changes how every outline icon looks compared to using the library
+directly. The value `2` is still a first-class choice, and setting it skips the
+rewrite entirely: it is what the source SVGs already contain.
 
 This is deliberately **not** a CSS variable. Glyphs are painted as `mask` from a
-base64-encoded SVG (§3), and a mask exposes only its alpha channel — no runtime
+base64-encoded SVG (§3), and a mask exposes only its alpha channel: no runtime
 custom property can reach the `stroke-width` attribute inside it. The value is
 therefore substituted into the SVG source before encoding, at build time.
 
 Two consequences:
 
-- The unit is **viewBox units**, not pixels. All Lucide icons are 24x24, so the
-  rendered thickness is `strokeWidth / 24 * --icon-size`. At the default
+- The unit is **viewBox units**, not pixels. Lucide and Tabler icons are 24x24,
+  so the rendered thickness is `strokeWidth / 24 * --icon-size`. At the default
   `--icon-size: 1em` (16px): `1` renders as 0.67px, `1.5` as 1px, `2` as 1.33px.
   A weight of `1` is genuinely hairline at 16px and depends on the renderer's
-  antialiasing — `1.5` is the safer pick for icon-dense UIs.
+  antialiasing: `1.5` is the safer pick for icon-dense UIs.
 - The weight is **site-wide**. A per-component variant would require emitting a
-  second glyph set, doubling the stylesheet — not worth it for a design token that
+  second glyph set, doubling the stylesheet: not worth it for a design token that
   should stay consistent anyway.
 
-The substitution is exhaustive and safe: all 1236 Lucide icons carry exactly one
-`stroke-width="2"`, on the root `<svg>`. It is scoped to `icons/ui/` — Simple Icons
-brands are solid fills and carry no stroke.
+The substitution is exhaustive and safe on outline sets: every Lucide icon (1743
+of 1743 at the pinned commit, 2123 of 2123 on `main` in November 2026) and every
+Tabler outline icon (5509 of 5509 at v3.53.0) carries exactly one
+`stroke-width="2"`, on the root `<svg>`. It applies to
+every folder but `brands`: Simple Icons are solid fills and carry no stroke, and
+on any other set without a stroke it changes nothing.
 
-### Solid — `solid:`
+Tabler opens each file with an XML comment of metadata (tags, category). The
+engine strips comments before encoding: they draw nothing and would only weigh
+on the stylesheet.
+
+### Solid: `solid:`
 
 Lucide is outline-only: no icon ships filled, and there is no `star-fill` to ask
 for (that `-fill` suffix is another set's convention, see §2). A filled glyph is
-still sometimes the right one — the stars of a rating, a toggled heart or
-bookmark — and a mask cannot fill an outline at runtime: it only lets colour
-through what the SVG draws.
+still sometimes the right one: the stars of a rating, a toggled heart or
+bookmark. A mask cannot fill an outline at runtime: it only lets colour through
+what the SVG draws.
 
-So filling is a build-time rendering of the Lucide icon, asked for with a
+So filling is a build-time rendering of the outline icon, asked for with a
 prefix, the way `brand:` is:
 
 ```go-html-template
-{{ partial "icon" "solid:star" }}   → <i class="icon icon-solid-star">
+{{ partial "icon" "solid:star" }}         → <i class="icon icon-solid-star">
+{{ partial "icon" "solid:tabler:star" }}  → <i class="icon icon-solid-tabler-star">
 ```
 
-The name stays the Lucide name. The engine turns the root `fill="none"` into
-`fill="currentColor"` — every Lucide icon carries exactly one, on the root
-`<svg>` (2046 of 2046 at the pinned commit), and `currentColor` is how one fills
-a Lucide icon inline — so every shape the stroke draws is filled in, and the
-stroke stays on top, keeping the outline's weight and round joins. Like every
-other `currentColor`, it then becomes opaque black for the mask (§3): the
-colour on screen is still the `.icon` background, `--icon-color`. The class is
-`icon-solid-star`, one of its own: `icon-star` keeps the outline, so both
+The name stays the set's name. The engine turns the root `fill="none"` into
+`fill="currentColor"`: every Lucide icon and every Tabler outline icon carries
+exactly one, on the root `<svg>`, and `currentColor` is how one fills such an icon
+inline. Every shape the stroke draws is filled in, and the stroke stays on top,
+keeping the outline's weight and round joins. Like every other `currentColor`, it
+then becomes opaque black for the mask (§3): the colour on screen is still the
+`.icon` background, `--icon-color`. `icon-star` keeps the outline, so both
 renderings of one icon can be used on the same page.
 
-It suits silhouettes — closed shapes such as `star`, `heart`, `bookmark`,
+It suits silhouettes: closed shapes such as `star`, `heart`, `bookmark`,
 `circle`. On an icon drawn with inner detail or open strokes, filling paints over
 that detail; pick another icon rather than fill that one. `solid:` is ignored on
 a brand, which is a solid fill already.
 
-## 6. Brands — resolved by context
+## 6. Brands: resolved by context
 
 A brand only appears in a known place: the social menu (`social.yml`). That
 partial prefixes the name with `brand:` so it resolves against Simple Icons; the
@@ -202,51 +280,25 @@ author writes nothing special.
 This also disambiguates names that exist in both sets, 34 at the pinned commits
 (`x`, `apple`, `rss`, `bluetooth`…):
 
-- `apple` in content → `icons/ui/apple.svg` (the Lucide apple), class `icon-apple`.
+- `apple` in content → `icons/lucide/apple.svg` (the Lucide apple), class `icon-apple`.
 - `apple` in the social menu → `brand:apple` → `icons/brands/apple.svg` (the
   Apple logo), class `icon-brand-apple`.
-
-The class keeps the prefix because one stylesheet serves the whole site (§7): a
-shared `icon-apple` would give both the glyph written last, wherever each is used.
 
 Brand names must match Simple Icons slugs (e.g. use `x`, not `twitter`). There is
 no alias layer; slug accuracy is a `social.yml` content convention.
 
 ## 7. Implementation
 
-### Partial — `layouts/partials/icon.html`
-
-Emits markup only and registers the name for the deferred pass.
-
-```go-html-template
-{{- $dir := "ui" }}{{ $name := . }}{{ $solid := false -}}
-{{- if strings.HasPrefix $name "solid:" -}}
-  {{- $solid = true }}{{ $name = strings.TrimPrefix "solid:" $name -}}
-{{- end -}}
-{{- if strings.HasPrefix $name "brand:" -}}
-  {{- $dir = "brands" }}{{ $solid = false }}{{ $name = strings.TrimPrefix "brand:" $name -}}
-{{- end -}}
-{{- hugo.Store.Add "usedIcons" (slice (printf "%s:%s%s" $dir $name (cond $solid ":solid" ""))) -}}
-{{- $prefix := cond (eq $dir "brands") "brand-" (cond $solid "solid-" "") -}}
-<i class="icon icon-{{ $prefix }}{{ $name }}" aria-hidden="true"></i>
-```
-
-Each used icon is registered as a `"dir:name"` string (e.g. `ui:map-pin`,
-`brands:github`), with a third `:solid` part when it is asked for filled in
-(`ui:star:solid`, §5); the deferred pass splits it back on `:`.
-
-The class mirrors the name, prefix included: `map-pin` gives `icon-map-pin`,
-`brand:github` gives `icon-brand-github`, `solid:star` gives `icon-solid-star`.
-No Lucide name starts with `brand-` or `solid-`, so a prefixed class never meets
-a plain one, and each glyph has exactly one selector.
-
-### Engine — `layouts/partials/head/icons.html`
-
-The base theme's `<head>` guards the include the same opt-in way as the call
-sites — `{{ if templates.Exists "partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}`
-(in `hugolify-theme`'s `partials/head/head.html`) — so this partial runs **only**
-when this module provides it. The `templates.Defer` block runs after all pages
-of all languages render, so `hugo.Store` holds every icon used site-wide.
+- `layouts/partials/icon.html`: splits `solid:`, then `set:name`, emits the
+  markup and registers `"dir:name"` (plus `:solid`) in `hugo.Store`.
+- `layouts/partials/head/icons.html`: the deferred pass. Resolves each
+  registered name (the site's `icons/ui/` first for the default set), rewrites
+  the stroke, fills `solid:`, strips comments, forces `currentColor` to `#000`
+  for the mask, and writes one stylesheet.
+- `layouts/partials/func/icons/GetDefaultSet.html`: `params.icons.set`, `lucide`
+  when unset.
+- `layouts/partials/func/icons/GetClass.html`: the class rule of §4, used by both
+  partials so markup and selector always agree.
 
 The store is `hugo.Store`, not `site.Store`. Every language publishes the same
 `assets/css/icons.css`, and `resources.FromString` caches by target path: whichever
@@ -254,44 +306,18 @@ language builds it first wins for all of them. A per-language store dropped the
 icons used in one language only. The names are sorted so the parallel render
 order of the languages cannot change the fingerprint.
 
-It emits one CSS file containing the base `.icon` rule
-(§3, folded in) plus one `--icon-glyph` per used icon — no separate base asset, no
-lookup table. The file is minified + fingerprinted **in production only**.
+A missing icon renders invisible (the empty default glyph) and logs a warning
+that tells a set that isn't installed (`no icons/foo/ folder, import
+github.com/hugolify/hugolify-theme-icons-foo`) from a name the set doesn't have.
 
-```go-html-template
-{{ with (templates.Defer (dict "key" "hugolify-icons")) }}
-  {{- /* default matches Lucide's own stroke-width, so an unset param changes nothing (§5) */ -}}
-  {{- $stroke := 2 -}}
-  {{- with site.Params.icons -}}{{- with .strokeWidth -}}{{- $stroke = . -}}{{- end -}}{{- end -}}
-  {{- $glyphs := slice -}}
-  {{- range hugo.Store.Get "usedIcons" | uniq | sort -}}
-    {{- $parts := split . ":" -}}
-    {{- $dir := index $parts 0 }}{{ $name := index $parts 1 -}}
-    {{- $solid := and (gt (len $parts) 2) (eq (index $parts 2) "solid") -}}
-    {{- with resources.Get (printf "icons/%s/%s.svg" $dir $name) -}}
-      {{- $svg := .Content -}}
-      {{- /* every Lucide icon carries exactly one stroke-width="2", on the root <svg>; brands are solid fills and have none */ -}}
-      {{- if and (eq $dir "ui") (ne $stroke 2) -}}
-        {{- $svg = replaceRE `stroke-width="2"` (printf `stroke-width="%v"` $stroke) $svg -}}
-      {{- end -}}
-      {{- /* solid: paint the root fill="none" (§5) */ -}}
-      {{- if $solid }}{{ $svg = replaceRE `fill="none"` `fill="currentColor"` $svg }}{{ end -}}
-      {{- /* currentColor has no context in a mask → force opaque; collapse whitespace to ONE space (never empty: pretty-printed SVGs would glue their attributes) */ -}}
-      {{- $svg = $svg | replaceRE `currentColor` `#000` | replaceRE `\s+` ` ` -}}
-      {{- $selector := printf ".icon-%s%s" (cond (eq $dir "brands") "brand-" (cond $solid "solid-" "")) $name -}}
-      {{- $glyphs = $glyphs | append (printf "%s{--icon-glyph:url('data:image/svg+xml;base64,%s')}" $selector ($svg | base64Encode)) -}}
-    {{- else -}}
-      {{- warnf "[icons] %q not found in icons/%s/" $name $dir -}}
-    {{- end -}}
-  {{- end -}}
-  {{- with $glyphs -}}
-    {{- $base := ".icon{--icon-glyph:url('data:image/svg+xml,%3Csvg/%3E');background-color:var(--icon-color,currentColor);display:inline-block;width:var(--icon-size,1em);height:var(--icon-size,1em);mask:var(--icon-glyph) center / contain no-repeat;vertical-align:-0.125em}" -}}
-    {{- $res := resources.FromString "assets/css/icons.css" (printf "@layer components{%s%s}" $base (delimit . "")) -}}
-    {{- if hugo.IsProduction }}{{ $res = $res | minify | fingerprint }}{{ end -}}
-    <link rel="stylesheet" href="{{ $res.RelPermalink }}"{{ with $res.Data.Integrity }} integrity="{{ . }}"{{ end }}>
-  {{- end -}}
-{{ end }}
-```
+### Theme vocabulary
+
+The Hugolify themes call a few icons by name: `play` and `pause` (video toggle;
+css-components also targets `.icon-play` and `.icon-pause`), `contact-round`
+(vCard), `map-pin`, `solid:star` (rating) and `brand:github`. A set module that
+can serve as the default set must resolve all of them. Lucide does natively;
+`hugolify-theme-icons-tabler` ships `play`, `pause` and `contact-round` as local
+aliases of its `player-play`, `player-pause` and `user-square-rounded`.
 
 ### Consuming-theme call sites
 
@@ -306,7 +332,7 @@ Content icons (`key-features`, `alert`, `comparison`, `informations`):
 {{ with .icon }}{{ if templates.Exists "partials/icon.html" }}{{ partial "icon" . }}{{ end }}{{ end }}
 ```
 
-Social menu (`nav/social.html`) — falls back to the plain link (its **label**):
+Social menu (`nav/social.html`) falls back to the plain link (its **label**):
 
 ```go-html-template
 {{ if templates.Exists "partials/icon.html" }}
@@ -318,10 +344,13 @@ Social menu (`nav/social.html`) — falls back to the plain link (its **label**)
 {{ end }}
 ```
 
+The base theme's `<head>` guards the stylesheet the same way:
+`{{ if templates.Exists "_partials/head/icons.html" }}{{ partial "head/icons.html" . }}{{ end }}`.
+
 Resulting behaviour:
 
-- **module present** → SVG mask; the icon is registered for the deferred CSS.
-- **module absent** → content renders nothing; the social menu shows the text label
+- **module present**: SVG mask; the icon is registered for the deferred CSS.
+- **module absent**: content renders nothing; the social menu shows the text label
   (via the `nav/link` fallback).
 
 Layout and icon sizing (`.icon { --icon-size }`) live in the consuming theme (e.g.
@@ -333,53 +362,40 @@ rendered the link simply shows its text label.
 - **Content naming.** A project coming from another icon set carries non-Lucide
   `icon-*` names in its content. There is no runtime alias; the Hugolify v2 content
   migration rewrites those names to their Lucide equivalents ahead of time.
+- **Brands.** `github, instagram, youtube, facebook` resolve directly; `twitter`
+  becomes `x`. `vimeo`, `google`, `bluesky`, `mastodon` have no Lucide equivalent,
+  which is exactly why brands go through Simple Icons. `linkedin` is the exception:
+  Simple Icons removed it on legal request in 2022, so
+  `hugolify-theme-icons-simple-icons` ships it as a local SVG.
+- **Switching the default set** (e.g. Lucide to Tabler) is a content migration
+  too: of the 127 Lucide names used in the content of the Hugolify sites in
+  November 2026, 68 exist under the same name in Tabler (and a same name is not
+  always the same drawing).
 
-### Brands → Simple Icons
+## 9. Versions and open items
 
-`github, instagram, youtube, facebook` resolve directly; `twitter` → `x`.
-`vimeo`, `google`, `bluesky`, `mastodon` have no Lucide equivalent — which is
-exactly why brands go through Simple Icons.
-
-**`linkedin` is the exception:** Simple Icons removed it (and a few other brands)
-on legal request in 2022, and Lucide dropped all brand icons too — so it resolves
-from neither upstream. Filling it requires a local SVG committed to this module
-(see §9), which re-introduces the trademark exposure Simple Icons chose to avoid.
-
-## 9. Status & open items
-
-The engine is in place: `hugo.yaml`, `layouts/partials/icon.html`,
-`layouts/partials/head/icons.html`. The base `.icon` rule is folded into the
-generated stylesheet, so no separate CSS asset is needed.
-
-- `templates.Defer` — available since Hugo **v0.128.0**; confirmed (dev machine
-  runs v0.158). The module therefore requires Hugo ≥ 0.128.0.
-- **Not yet validated by a build.** Run `hugo mod get` in a consuming project and
-  confirm the upstream module imports resolve and their SVGs live at
-  `icons/*.svg` for `lucide-icons/lucide` and `simple-icons/simple-icons`.
-- **Lucide source caveat (important).** Go resolves modules by git tag, but the
-  `lucide-icons/lucide` repo **stopped tagging around v0.289.0** (late 2023). So
-  `@latest` caps at v0.289.0, which still uses legacy names (`home` not `house`,
-  `alert-octagon` not `octagon-alert`, `code` not `code-xml`, `columns` not
-  `columns-3`, `badge-help` not `badge-question-mark`); the `home → house` rename
-  landed in ~v0.292 and was never tagged. Current icons live only on `main`/npm.
-  Options:
-  - pin `@main` (pseudo-version of the latest commit:
-    `hugo mod get github.com/lucide-icons/lucide@main`) — note it is numerically
-    *below* v0.289.0, so a later `@latest` would silently regress;
-  - or source from npm `lucide-static` (properly versioned, current) or commit
-    curated SVGs in this module.
-  - **`simple-icons` has the same stale-tag gap, now confirmed:** highest git tag
-    is `v2.17.1` (long abandoned), while `master` ships 3442 brands. Pinned to its
-    default branch with `hugo mod get github.com/simple-icons/simple-icons@master`
-    (pseudo-version `v0.0.0-…`, again numerically below the old tag). Re-bump with
-    the same command; never `@latest`.
-- **`linkedin` has no upstream source** — removed from Simple Icons on legal request
-  (2022) and absent from Lucide (brand icons dropped). **Resolved here** with a local
-  `assets/icons/brands/linkedin.svg`; the local `assets` mount (§5) takes precedence
-  over the imports, so it fills the gap. This re-introduces the trademark exposure
-  Simple Icons avoided — a deliberate, accepted call.
-- **Class collision, resolved:** a UI `x` and a `brand:x` used anywhere on one
-  site emitted the same `.icon-x` twice, and both showed the glyph written last
-  (Lucide's cross in place of the X logo). Brand classes are now `icon-brand-*`,
-  and filled icons `icon-solid-*` rather than `icon-* icon-solid`, which also
-  keeps `brand:solid` (SolidJS) off the class of the modifier (§6, §7).
+- Requires Hugo ≥ **v0.128.0** (`templates.Defer`).
+- **Versions are the site's.** The set modules require the oldest upstream commit
+  the engine has used (Lucide `cf0e1e44baa6`, 2026-06-18; Simple Icons
+  `c3777a7e48a5`, 2026-06-07). Go selects the highest version required, so a site
+  keeps the Lucide it pinned and moves it on its own, with
+  `hugo mod get github.com/lucide-icons/lucide@main` run in the site. Forcing a
+  newer Lucide from here would break sites: on 2026-11-03 Lucide removed or
+  renamed about sixty files (`circle-alert`, `triangle-alert`, `trash-2`, `smile`,
+  `history`, `heading`…), and a site still on an earlier commit would lose those
+  icons on update.
+- **Lucide and Simple Icons tags are stale**: `lucide-icons/lucide` stopped tagging
+  around v0.289.0 and `simple-icons` at v2.17.1, so `@latest` would regress. Pin
+  `@main` / `@master` (pseudo-versions), never `@latest`; see each set module's
+  README. Tabler tags its releases (`v3.53.0+incompatible`), so `-u` works there.
+- **Tags of this module**: releases up to 1.6.0 were tagged without the `v` that
+  Go requires, so sites pinned pseudo-versions. From v1.7.0 tags carry it.
+- **Class collision, resolved** (v1.6.0): a UI `x` and a `brand:x` used anywhere
+  on one site emitted the same `.icon-x` twice, and both showed the glyph written
+  last. Brand classes are `icon-brand-*`, filled icons `icon-solid-*`, and other
+  sets `icon-<set>-*` (§4).
+- **Later: `hugolify-theme-icons-bootstrap`.** Bootstrap Icons (MIT, tagged)
+  would fit the same engine with three points of its own: solid icons drawn on a
+  16x16 grid (`strokeWidth` has no effect), `solid:` served by its `-fill`
+  variants rather than the computed fill, and aliases for `map-pin` (`geo-alt`)
+  and `contact-round` (`person-vcard`).
