@@ -20,6 +20,7 @@ downloads the sets it uses:
 | [hugolify-theme-icons-lucide](https://github.com/hugolify/hugolify-theme-icons-lucide) | [Lucide](https://lucide.dev/icons/) | `map-pin`, imported by default |
 | [hugolify-theme-icons-simple-icons](https://github.com/hugolify/hugolify-theme-icons-simple-icons) | [Simple Icons](https://simpleicons.org/) | `brand:github`, imported by default |
 | [hugolify-theme-icons-tabler](https://github.com/hugolify/hugolify-theme-icons-tabler) | [Tabler](https://tabler.io/icons) | `tabler:ladder`, imported by the site |
+| [hugolify-theme-icons-bootstrap](https://github.com/hugolify/hugolify-theme-icons-bootstrap) | [Bootstrap Icons](https://icons.getbootstrap.com/) | `bootstrap:geo-alt`, imported by the site |
 
 It is opt-in: a project imports the module to get icons, and renders none if it
 doesn't.
@@ -98,6 +99,7 @@ Requires Hugo ≥ **v0.128.0** (`templates.Defer`).
 - [Lucide icons](https://lucide.dev/icons/)
 - [Simple icons](https://simpleicons.org/)
 - [Tabler icons](https://tabler.io/icons)
+- [Bootstrap icons](https://icons.getbootstrap.com/)
 - [Hugolify](https://www.hugolify.io/docs/)
 
 ## Licensing

@@ -91,6 +91,7 @@ assets/css/icons.css (subset, fingerprinted in prod) ← one cached file, only u
 | `hugolify-theme-icons-lucide` | `assets/icons/lucide/` | `lucide:` | by the engine |
 | `hugolify-theme-icons-simple-icons` | `assets/icons/brands/` | `brand:` | by the engine |
 | `hugolify-theme-icons-tabler` | `assets/icons/tabler/` | `tabler:` | by the site, if wanted |
+| `hugolify-theme-icons-bootstrap` | `assets/icons/bootstrap/` | `bootstrap:` | by the site, if wanted |
 
 The engine resolves `set:name` to `assets/icons/<set>/<name>.svg`, so a new set
 needs **no engine change**: its module mounts its icons in its own folder.
@@ -266,6 +267,12 @@ It suits silhouettes: closed shapes such as `star`, `heart`, `bookmark`,
 that detail; pick another icon rather than fill that one. `solid:` is ignored on
 a brand, which is a solid fill already.
 
+A set that draws its own filled icons, named `<name>-fill` (Bootstrap Icons has
+670), serves those instead: `solid:star` takes `star-fill.svg` as drawn, with no
+computed fill (since v1.8.0). The computed fill stays for the names a set has no
+`-fill` drawing for, and for outline sets: neither Lucide nor Tabler has a single
+name ending in `-fill`, so their rendering is unchanged.
+
 ## 6. Brands: resolved by context
 
 A brand only appears in a known place: the social menu (`social.yml`). That
@@ -317,7 +324,9 @@ css-components also targets `.icon-play` and `.icon-pause`), `contact-round`
 (vCard), `map-pin`, `solid:star` (rating) and `brand:github`. A set module that
 can serve as the default set must resolve all of them. Lucide does natively;
 `hugolify-theme-icons-tabler` ships `play`, `pause` and `contact-round` as local
-aliases of its `player-play`, `player-pause` and `user-square-rounded`.
+aliases of its `player-play`, `player-pause` and `user-square-rounded`;
+`hugolify-theme-icons-bootstrap` ships `map-pin` and `contact-round` (and their
+`-fill`) as aliases of its `geo-alt` and `person-vcard`.
 
 ### Consuming-theme call sites
 
@@ -394,8 +403,9 @@ rendered the link simply shows its text label.
   on one site emitted the same `.icon-x` twice, and both showed the glyph written
   last. Brand classes are `icon-brand-*`, filled icons `icon-solid-*`, and other
   sets `icon-<set>-*` (§4).
-- **Later: `hugolify-theme-icons-bootstrap`.** Bootstrap Icons (MIT, tagged)
-  would fit the same engine with three points of its own: solid icons drawn on a
-  16x16 grid (`strokeWidth` has no effect), `solid:` served by its `-fill`
-  variants rather than the computed fill, and aliases for `map-pin` (`geo-alt`)
-  and `contact-round` (`person-vcard`).
+- **Bootstrap Icons** (`hugolify-theme-icons-bootstrap`, `github.com/twbs/icons`
+  v1.13.2, tagged) are solid icons drawn on a 16x16 grid: `strokeWidth` has no
+  effect on them, and `solid:` uses their `-fill` drawings (§5). With
+  `icons.set: bootstrap`, a site keeps content written with Bootstrap names (a v1
+  site, before its content migration). Not for sites on hugolify-theme-bootstrap,
+  which ships the Bootstrap Icons webfont and its own `.icon` class.

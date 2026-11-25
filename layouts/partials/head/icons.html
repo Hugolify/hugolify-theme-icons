@@ -38,6 +38,15 @@
     {{- if eq $dir $default -}}
       {{- $svgFile = resources.Get (printf "icons/ui/%s.svg" $name) -}}
     {{- end -}}
+    {{- /* solid: a set that draws its own filled icons, named <name>-fill (Bootstrap Icons), serves that
+           drawing; the computed fill below is for outline sets, which have none (Lucide, Tabler) */ -}}
+    {{- $drawnSolid := false -}}
+    {{- if and $solid (not $svgFile) -}}
+      {{- with resources.Get (printf "icons/%s/%s-fill.svg" $dir $name) -}}
+        {{- $svgFile = . -}}
+        {{- $drawnSolid = true -}}
+      {{- end -}}
+    {{- end -}}
     {{- with or $svgFile (resources.Get (printf "icons/%s/%s.svg" $dir $name)) -}}
       {{- $svg := .Content -}}
       {{- /* outline sets (Lucide, Tabler) carry exactly one stroke-width="2", on the root <svg>; brands are
@@ -48,7 +57,7 @@
       {{- /* solid: outline sets carry exactly one fill="none", on the root <svg>. Painting it in currentColor,
              as one fills such an icon inline, fills every shape the stroke draws; the stroke stays on top so
              the outline keeps its weight and joins. The line below makes it opaque for the mask */ -}}
-      {{- if $solid -}}
+      {{- if and $solid (not $drawnSolid) -}}
         {{- $svg = replaceRE `fill="none"` `fill="currentColor"` $svg -}}
       {{- end -}}
       {{- /* comments draw nothing and would only weigh on the stylesheet: Tabler opens every icon with its metadata */ -}}
