@@ -1,0 +1,112 @@
+{{- /*
+  The icons a site can show: every SVG mounted under assets/icons/<folder>/,
+  named the way partials/icon.html resolves them. Built for the admin's icon
+  field (hugolify-admin), which shows them in a searchable grid.
+
+  @returns dict
+    default  (string) the default set (params.icons.set)
+    sets     (slice)  one entry per folder: the site's own "ui" first, then the
+                      default set, then the others by name
+      dir     (string) the folder under assets/icons/
+      prefix  (string) what a name takes to reach that folder: "" for "ui" and
+                       the default set, "brand:" for brands, "<set>:" for any other
+      files   (resources) the folder's SVGs, e.g. for resources.Concat
+      names   (slice of string) their names, without .svg, in the same order
+      tags    (slice of string) their tags, comma separated, in the same order:
+                       "" when the set has none, or keeps them in its SVGs
+      comments (bool)  the set keeps its tags in its SVGs: read them there
+
+  The site's own assets/icons/ui/ icons resolve without a prefix, before the
+  default set's (see head/icons.html): a "ui" name hides the default set's.
+
+  Tags, for searching by keyword, come from what each set ships. A <name>.json
+  with a "tags" list next to the SVG (Lucide) fills `tags`, eight at most per
+  icon. A "tags: [...]" line in the comment each SVG opens with (Tabler) sets
+  `comments` instead: reading thousands of SVGs costs the build about as much
+  as everything else here, and a consumer that draws the icons reads them
+  anyway (hugolify-admin's dialog does).
+
+  Call it after every page has rendered (templates.Defer): it reads thousands
+  of assets, and read while pages render, it broke the base theme's templated
+  css/main.css under hugo server. See DESIGN.md §7.
+
+  @example
+    {{ $catalog := partialCached "func/icons/GetCatalog.html" "icons" }}
+*/ -}}
+{{- $default := partialCached "func/icons/GetDefaultSet.html" "icons" -}}
+{{- $maxTags := 8 -}}
+{{- /* a set shows where its tags are within its first icons: past this many without any, it has none */ -}}
+{{- $probe := 10 -}}
+{{- /* The folders, from one listing: "icons/<folder>/<name>.svg", with or without a leading slash
+       depending on the Hugo version. Maps keep this fast: appending to a slice thousands of times
+       costs a template far more than setting a key */ -}}
+{{- $found := newScratch -}}
+{{- range resources.Match "icons/*/*.svg" -}}
+  {{- $parts := split (strings.TrimPrefix "/" .Name) "/" -}}
+  {{- if eq (len $parts) 3 }}{{ $found.Set (index $parts 1) true }}{{ end -}}
+{{- end -}}
+{{- $dirs := slice -}}
+{{- range $dir, $_ := $found.Values }}{{ $dirs = $dirs | append $dir }}{{ end -}}
+{{- $order := slice -}}
+{{- range slice "ui" $default -}}
+  {{- if in $dirs . }}{{ $order = $order | append . }}{{ end -}}
+{{- end -}}
+{{- range $dirs -}}
+  {{- if not (in $order .) }}{{ $order = $order | append . }}{{ end -}}
+{{- end -}}
+{{- $sets := slice -}}
+{{- range $order -}}
+  {{- $dir := . -}}
+  {{- $files := resources.Match (printf "icons/%s/*.svg" $dir) -}}
+  {{- /* index → name and index → tags: delimit reads a map in key order, so the zero-padded index
+         gives both lists back in the files' order */ -}}
+  {{- $lists := newScratch -}}
+  {{- /* "json" or "comment" once the set shows where its tags are, "none" once it shows it has none */ -}}
+  {{- $mode := "" -}}
+  {{- $probed := 0 -}}
+  {{- range $i, $file := $files -}}
+    {{- $name := path.BaseName $file.Name -}}
+    {{- $tags := slice -}}
+    {{- $tagged := false -}}
+    {{- /* each read is the main cost here: past the probe, only a set with JSON tags (Lucide) is read */ -}}
+    {{- if in (slice "" "json") $mode -}}
+      {{- with resources.Get (printf "icons/%s/%s.json" $dir $name) -}}
+        {{- with (transform.Unmarshal .).tags -}}{{- $tags = . -}}{{- end -}}
+        {{- $tagged = true -}}
+        {{- $mode = "json" -}}
+      {{- end -}}
+    {{- end -}}
+    {{- /* probing only: past that, a set that keeps its tags in its SVGs is left to the consumer */ -}}
+    {{- if and (not $tagged) (eq $mode "") -}}
+      {{- if and (strings.HasPrefix $file.Content "<!--") (findRE `tags:\s*\[` $file.Content 1) -}}
+        {{- $tagged = true -}}
+        {{- $mode = "comment" -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if and (not $tagged) (eq $mode "") -}}
+      {{- $probed = add $probed 1 -}}
+      {{- if ge $probed $probe }}{{ $mode = "none" }}{{ end -}}
+    {{- end -}}
+    {{- /* Lucide also lists its groups ($group:…), and a set may repeat the name: neither helps a search */ -}}
+    {{- $list := slice -}}
+    {{- range $tags -}}
+      {{- $tag := strings.TrimSpace . -}}
+      {{- if and $tag (ne $tag $name) (not (strings.HasPrefix $tag "$")) (lt (len $list) $maxTags) -}}
+        {{- $list = $list | append $tag -}}
+      {{- end -}}
+    {{- end -}}
+    {{- $key := printf "%05d" $i -}}
+    {{- $lists.SetInMap "names" $key $name -}}
+    {{- $lists.SetInMap "tags" $key (delimit $list ", ") -}}
+  {{- end -}}
+  {{- $prefix := cond (in (slice "ui" $default) $dir) "" (cond (eq $dir "brands") "brand:" (printf "%s:" $dir)) -}}
+  {{- $sets = $sets | append (dict
+    "dir" $dir
+    "prefix" $prefix
+    "files" $files
+    "names" (split (delimit ($lists.Get "names") "\n") "\n")
+    "tags" (split (delimit ($lists.Get "tags") "\n") "\n")
+    "comments" (eq $mode "comment")
+  ) -}}
+{{- end -}}
+{{- return dict "default" $default "sets" $sets -}}

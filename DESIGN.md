@@ -306,6 +306,24 @@ no alias layer; slug accuracy is a `social.yml` content convention.
   when unset.
 - `layouts/partials/func/icons/GetClass.html`: the class rule of §4, used by both
   partials so markup and selector always agree.
+- `layouts/partials/func/icons/GetCatalog.html` (since v1.9.0): every icon the
+  site can show, folder by folder, named as `partials/icon.html` resolves them:
+  the folder's files and their names in the same order, with up to eight tags
+  each when the set ships a `<name>.json` (Lucide). A set that keeps its tags in
+  the comment each SVG opens with (Tabler) is flagged instead (`comments`):
+  reading thousands of SVGs would double the cost, and a consumer that draws the
+  icons reads them anyway. Each set is probed on its first icons, so a set
+  without tags (brands, Bootstrap) isn't read at all. hugolify-admin builds its
+  icon dialog on it, in Decap and Sveltia CMS: a JSON of names and tags, and
+  each set's SVGs joined in one file it draws them from.
+
+The catalog reads thousands of assets: call it after every page has rendered
+(`templates.Defer`), as hugolify-admin does. Read while pages render, it
+disturbed `hugo server`'s resource cache, and the base theme's `css/main.css`
+(templated, then run through PostCSS under the same name) came back as its own
+PostCSS output: `main.css:9819: unexpected "<" in command`. It costs about 0.5 s
+for Lucide and brands, 1 s with Tabler and Bootstrap too; most of it is reading
+files, one per Lucide icon for its tags.
 
 The store is `hugo.Store`, not `site.Store`. Every language publishes the same
 `assets/css/icons.css`, and `resources.FromString` caches by target path: whichever

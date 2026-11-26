@@ -86,11 +86,18 @@ The unit is viewBox units (icons are 24x24), so the rendered thickness is
 `1.5` gives 1px. It is a build-time param rather than a CSS variable because masks
 are opaque to runtime CSS; see [DESIGN.md](DESIGN.md) §5.
 
+## Admin
+
+With [hugolify-admin](https://github.com/hugolify/hugolify-admin), the icon
+fields of Decap and Sveltia CMS show the chosen icon and open a grid of the
+icons the site can show, searchable by name or keyword. The list comes from
+`func/icons/GetCatalog.html` (since v1.9.0); see [DESIGN.md](DESIGN.md) §7.
+
 ## Architecture
 
 See [DESIGN.md](DESIGN.md) for the full design: mask rendering, the Hugo-native
-build (`templates.Defer`), set modules and classes, brand handling, and
-content-naming migration.
+build (`templates.Defer`), set modules and classes, brand handling, the icon
+catalog, and content-naming migration.
 
 Requires Hugo ≥ **v0.128.0** (`templates.Defer`).
 
